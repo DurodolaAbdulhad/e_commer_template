@@ -49,6 +49,7 @@ const NAV: NavItem[] = [
   { href: '/admin/back-in-stock',    label: 'Back-in-Stock',   icon: Bell },
   { href: '/admin/staff',            label: 'Staff & Roles',   icon: UserCog },
   { href: '/admin/blog',             label: 'Blog Posts',      icon: FileText },
+  { href: '/admin/pages',            label: 'Pages Editor',    icon: FileText },
 ]
 
 function NavLink({ item, depth = 0 }: { item: NavItem; depth?: number }) {
