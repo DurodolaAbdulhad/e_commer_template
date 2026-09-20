@@ -4,6 +4,7 @@ import PageBox from '@/components/ui/PageBox'
 import { client } from '@/config/client'
 import Link from 'next/link'
 import { ChevronRight, ShieldCheck, Truck, HeartHandshake, Award } from 'lucide-react'
+import { getPageContent } from '@/lib/page-content'
 
 const ACCENT = 'var(--brand-primary)'
 
@@ -14,7 +15,17 @@ const pillars = [
   { icon: <Award size={22} />,       title: 'Best Prices',         desc: 'We work directly with suppliers to give you the best value.' },
 ]
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  const saved = await getPageContent('about')
+  const d = {
+    headline: `About ${client.name}`,
+    tagline: `We're on a mission to make quality products accessible to everyone across Nigeria. Discover our story.`,
+    story_1: `${client.name} was founded with a simple belief: shopping online should be easy, affordable, and reliable. We started small, curating only the products we'd buy ourselves — and grew into the store you see today.`,
+    story_2: `We're proud to serve thousands of happy customers across Nigeria, with a constantly growing catalogue. Every decision we make is guided by what's best for you — our customer.`,
+    mission: '',
+    ...saved,
+  }
+
   return (
     <>
       <Header />
@@ -31,22 +42,19 @@ export default function AboutPage() {
           <div className="rounded-2xl text-white px-8 py-12 mb-10 text-center"
             style={{ background: `linear-gradient(135deg, ${ACCENT} 0%, #1a2638 100%)` }}>
             <h1 className="text-3xl font-extrabold mb-3" style={{ fontFamily: 'var(--font-heading)' }}>
-              About {client.name}
+              {d.headline}
             </h1>
-            <p className="text-white/80 max-w-xl mx-auto text-sm leading-relaxed">
-              {`We're on a mission to make quality products accessible to everyone across Nigeria. Discover our story.`}
-            </p>
+            <p className="text-white/80 max-w-xl mx-auto text-sm leading-relaxed">{d.tagline}</p>
           </div>
 
           {/* Story */}
           <div className="max-w-2xl mx-auto mb-12">
             <h2 className="text-xl font-bold text-gray-800 mb-4" style={{ fontFamily: 'var(--font-heading)' }}>Our Story</h2>
-            <p className="text-sm text-gray-600 leading-relaxed mb-4">
-              {client.name} was founded with a simple belief: shopping online should be easy, affordable, and reliable. We started small, curating only the products we'd buy ourselves — and grew into the store you see today.
-            </p>
-            <p className="text-sm text-gray-600 leading-relaxed">
-              We're proud to serve thousands of happy customers across Nigeria, with a constantly growing catalogue that covers electronics, fashion, home essentials, health, and more. Every decision we make is guided by what's best for you — our customer.
-            </p>
+            <p className="text-sm text-gray-600 leading-relaxed mb-4">{d.story_1}</p>
+            <p className="text-sm text-gray-600 leading-relaxed">{d.story_2}</p>
+            {d.mission && (
+              <p className="text-sm text-gray-600 leading-relaxed mt-4 font-medium">{d.mission}</p>
+            )}
           </div>
 
           {/* Pillars */}

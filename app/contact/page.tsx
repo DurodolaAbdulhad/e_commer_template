@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
 import PageBox from '@/components/ui/PageBox'
@@ -8,6 +8,7 @@ import { client } from '@/config/client'
 import { MapPin, Phone, Mail, MessageCircle, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
+import { getStoreSetting } from '@/lib/admin-db'
 
 const ACCENT = 'var(--brand-primary)'
 
@@ -15,6 +16,20 @@ export default function ContactPage() {
   const [form,    setForm]    = useState({ name: '', email: '', subject: '', message: '' })
   const [loading, setLoading] = useState(false)
   const [sent,    setSent]    = useState(false)
+  const [info,    setInfo]    = useState({
+    intro:           `We'd love to hear from you. Send us a message and we'll respond as soon as possible.`,
+    phone:           client.phone,
+    email:           client.email,
+    address:         client.address,
+    hours_weekday:   '9:00 AM – 6:00 PM',
+    hours_saturday:  '10:00 AM – 4:00 PM',
+  })
+
+  useEffect(() => {
+    getStoreSetting('page_contact').then((saved: any) => {
+      if (saved) setInfo(i => ({ ...i, ...saved }))
+    })
+  }, [])
 
   function update(field: string, val: string) {
     setForm(prev => ({ ...prev, [field]: val }))
@@ -49,7 +64,7 @@ export default function ContactPage() {
           <h1 className="text-2xl font-extrabold text-gray-900 mb-2" style={{ fontFamily: 'var(--font-heading)' }}>
             Get in Touch
           </h1>
-          <p className="text-sm text-gray-500 mb-8">We'd love to hear from you. Send us a message and we'll respond as soon as possible.</p>
+          <p className="text-sm text-gray-500 mb-8">{info.intro}</p>
 
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-10">
             {/* Form */}
@@ -105,10 +120,10 @@ export default function ContactPage() {
               <div className="bg-white border border-gray-100 rounded-xl p-5 space-y-4">
                 <h3 className="text-sm font-bold text-gray-800">Contact Information</h3>
                 {[
-                  { icon: <MapPin size={15} />, label: 'Address', value: client.address },
-                  { icon: <Phone size={15} />, label: 'Phone', value: client.phone },
-                  { icon: <Mail size={15} />, label: 'Email', value: client.email },
-                ].map(item => (
+                  { icon: <MapPin size={15} />, label: 'Address', value: info.address },
+                  { icon: <Phone size={15} />, label: 'Phone', value: info.phone },
+                  { icon: <Mail size={15} />, label: 'Email', value: info.email },
+                ].filter(item => item.value).map(item => (
                   <div key={item.label} className="flex items-start gap-3">
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-white"
                       style={{ backgroundColor: ACCENT }}>
@@ -136,8 +151,8 @@ export default function ContactPage() {
 
               <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
                 <p className="text-xs font-semibold text-gray-700 mb-1">Business Hours</p>
-                <p className="text-xs text-gray-500">Monday – Friday: 9am – 6pm</p>
-                <p className="text-xs text-gray-500">Saturday: 10am – 4pm</p>
+                <p className="text-xs text-gray-500">Monday – Friday: {info.hours_weekday}</p>
+                <p className="text-xs text-gray-500">Saturday: {info.hours_saturday}</p>
                 <p className="text-xs text-gray-500">Sunday: Closed</p>
               </div>
             </aside>

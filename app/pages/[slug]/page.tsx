@@ -8,6 +8,25 @@ import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import ContactPageContent from '@/components/pages/ContactPageContent'
 import FaqPageContent from '@/components/pages/FaqPageContent'
+import { getPageContent } from '@/lib/page-content'
+
+// Renders plain text with **bold** markers and double-newline paragraphs
+function RichText({ text }: { text: string }) {
+  return (
+    <div className="prose-custom max-w-2xl space-y-4 text-sm text-gray-600 leading-relaxed">
+      {text.split(/\n\n+/).map((para, i) => {
+        const parts = para.split(/\*\*(.+?)\*\*/g)
+        return (
+          <p key={i}>
+            {parts.map((part, j) =>
+              j % 2 === 1 ? <strong key={j} className="text-gray-800">{part}</strong> : part
+            )}
+          </p>
+        )
+      })}
+    </div>
+  )
+}
 
 // ─── Page definitions ─────────────────────────────────────────────────────────
 
@@ -182,18 +201,24 @@ function ReturnsContent() {
   )
 }
 
-function SupportContent() {
+function SupportContent({ data }: { data?: any }) {
+  const email = data?.email || client.email
+  const phone = data?.phone || client.phone
+  const hours = data?.hours || 'Monday – Friday: 9:00am – 6:00pm | Saturday: 10:00am – 4:00pm'
+  const intro = data?.intro || 'Our support team is here to help. Choose the channel that works best for you.'
+  const responseTime = data?.response_time || 'Response within 24 hours on business days'
+
   return (
     <div className="max-w-2xl space-y-6">
-      <p className="text-sm text-gray-600">Our support team is here to help. Choose the channel that works best for you.</p>
+      <p className="text-sm text-gray-600">{intro}</p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {[
-          { emoji: '💬', title: 'WhatsApp', desc: 'Fastest response — usually within minutes', action: `Chat now`, href: `https://wa.me/${client.whatsapp}` },
-          { emoji: '📧', title: 'Email', desc: 'Response within 24 hours on business days', action: client.email, href: `mailto:${client.email}` },
-          { emoji: '📞', title: 'Phone', desc: 'Mon–Fri 9am–6pm, Sat 10am–4pm', action: client.phone, href: `tel:${client.phone}` },
+          client.whatsapp && { emoji: '💬', title: 'WhatsApp', desc: 'Fastest response — usually within minutes', action: `Chat now`, href: `https://wa.me/${client.whatsapp}` },
+          email && { emoji: '📧', title: 'Email', desc: responseTime, action: email, href: `mailto:${email}` },
+          phone && { emoji: '📞', title: 'Phone', desc: hours, action: phone, href: `tel:${phone}` },
           { emoji: '❓', title: 'FAQ', desc: 'Find answers to common questions instantly', action: 'Browse FAQ', href: '/pages/faq' },
-        ].map(item => (
+        ].filter(Boolean).map((item: any) => (
           <a key={item.title} href={item.href}
             target={item.href.startsWith('http') ? '_blank' : undefined}
             rel={item.href.startsWith('http') ? 'noopener noreferrer' : undefined}
@@ -208,9 +233,9 @@ function SupportContent() {
 
       <div className="bg-gray-50 border border-gray-100 rounded-xl p-5 mt-4">
         <p className="text-sm font-bold text-gray-800 mb-1">Business Hours</p>
-        <p className="text-xs text-gray-500">Monday – Friday: 9:00am – 6:00pm</p>
-        <p className="text-xs text-gray-500">Saturday: 10:00am – 4:00pm</p>
-        <p className="text-xs text-gray-500">Sunday & Public Holidays: Closed</p>
+        {hours.split('|').map((h: string, i: number) => (
+          <p key={i} className="text-xs text-gray-500">{h.trim()}</p>
+        ))}
       </div>
     </div>
   )
@@ -225,15 +250,16 @@ const TEAM_MEMBERS = [
   { name: 'Amina Bello',      role: 'Head of Marketing',             emoji: '👩🏾‍🎨', bio: 'Tells the story of our brand and connects us to customers across Nigeria.' },
 ]
 
-function TeamContent() {
+function TeamContent({ data }: { data?: any }) {
+  const members = data?.members ?? TEAM_MEMBERS
+  const intro   = data?.intro ?? `We're a tight-knit team of builders, operators, and customer advocates united by one goal: making online shopping effortless and trustworthy.`
+
   return (
     <div className="max-w-3xl space-y-8">
-      <p className="text-sm text-gray-600 leading-relaxed">
-        We're a tight-knit team of builders, operators, and customer advocates united by one goal: making online shopping in Nigeria effortless and trustworthy.
-      </p>
+      <p className="text-sm text-gray-600 leading-relaxed">{intro}</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {TEAM_MEMBERS.map(m => (
-          <div key={m.name} className="bg-white border border-gray-100 rounded-xl p-5 hover:shadow-sm transition-shadow text-center">
+        {members.map((m: any, i: number) => (
+          <div key={i} className="bg-white border border-gray-100 rounded-xl p-5 hover:shadow-sm transition-shadow text-center">
             <div className="text-4xl mb-3">{m.emoji}</div>
             <h3 className="text-sm font-bold text-gray-800 mb-0.5">{m.name}</h3>
             <p className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--brand-primary)' }}>{m.role}</p>
@@ -262,12 +288,13 @@ const OPEN_ROLES = [
   { title: 'Sales Account Executive',     dept: 'Sales',      type: 'Full-time', location: 'Lagos', desc: 'Onboard new vendor partners and grow the product catalogue across categories.' },
 ]
 
-function CareersContent() {
+function CareersContent({ data }: { data?: any }) {
+  const jobs  = data?.jobs  ?? OPEN_ROLES
+  const intro = data?.intro ?? `We're building the future of e-commerce — and we want exceptional people to build it with us. We offer competitive pay, remote flexibility, and real ownership of your work.`
+
   return (
     <div className="max-w-2xl space-y-6">
-      <p className="text-sm text-gray-600 leading-relaxed">
-        We're building the future of e-commerce in Nigeria — and we want exceptional people to build it with us. We offer competitive pay, remote flexibility, and real ownership of your work.
-      </p>
+      <p className="text-sm text-gray-600 leading-relaxed">{intro}</p>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[
@@ -284,8 +311,8 @@ function CareersContent() {
 
       <h2 className="text-base font-bold text-gray-800 pt-2">Open Roles</h2>
       <div className="space-y-3">
-        {OPEN_ROLES.map(role => (
-          <div key={role.title} className="bg-white border border-gray-100 rounded-xl p-5 hover:shadow-sm transition-shadow">
+        {jobs.map((role: any, i: number) => (
+          <div key={i} className="bg-white border border-gray-100 rounded-xl p-5 hover:shadow-sm transition-shadow">
             <div className="flex items-start justify-between gap-4 mb-2">
               <h3 className="text-sm font-bold text-gray-800">{role.title}</h3>
               <div className="flex gap-1.5 shrink-0">
@@ -420,19 +447,25 @@ function PartnershipContent() {
   )
 }
 
-function StoreLocationContent() {
+function StoreLocationContent({ data }: { data?: any }) {
+  const address       = data?.address        || client.address || 'Lagos, Nigeria'
+  const directions    = data?.directions     || `We're conveniently located on the main commercial strip. Bus stops within 200m. Parking available on-site.`
+  const hoursWeekday  = data?.hours_weekday  || '9:00 AM – 6:00 PM'
+  const hoursSaturday = data?.hours_saturday || '10:00 AM – 4:00 PM'
+  const mapUrl        = data?.map_embed_url  || ''
+
   return (
     <div className="max-w-2xl space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-white border border-gray-100 rounded-xl p-5 space-y-3">
           <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Address</p>
-          <p className="text-sm text-gray-700 leading-relaxed">{client.address || '123 Commerce Street, Victoria Island, Lagos, Nigeria'}</p>
+          <p className="text-sm text-gray-700 leading-relaxed">{address}</p>
         </div>
         <div className="bg-white border border-gray-100 rounded-xl p-5 space-y-3">
           <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Opening Hours</p>
           <div className="space-y-1 text-sm text-gray-700">
-            <div className="flex justify-between"><span>Monday – Friday</span><span className="font-semibold">9:00 AM – 6:00 PM</span></div>
-            <div className="flex justify-between"><span>Saturday</span><span className="font-semibold">10:00 AM – 4:00 PM</span></div>
+            <div className="flex justify-between"><span>Monday – Friday</span><span className="font-semibold">{hoursWeekday}</span></div>
+            <div className="flex justify-between"><span>Saturday</span><span className="font-semibold">{hoursSaturday}</span></div>
             <div className="flex justify-between text-gray-400"><span>Sunday</span><span>Closed</span></div>
           </div>
         </div>
@@ -452,16 +485,20 @@ function StoreLocationContent() {
         </div>
         <div className="bg-white border border-gray-100 rounded-xl p-5 space-y-3">
           <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Getting Here</p>
-          <p className="text-sm text-gray-600 leading-relaxed">We're conveniently located on the main commercial strip. Bus stops within 200m. Parking available on-site.</p>
+          <p className="text-sm text-gray-600 leading-relaxed">{directions}</p>
         </div>
       </div>
 
       <div className="bg-gray-100 rounded-xl overflow-hidden" style={{ height: '260px' }}>
-        <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-400">
-          <span className="text-4xl">📍</span>
-          <p className="text-sm font-medium text-gray-500">Map view</p>
-          <p className="text-xs text-gray-400">Embed your Google Maps iframe here</p>
-        </div>
+        {mapUrl ? (
+          <iframe src={mapUrl} width="100%" height="260" style={{ border: 0 }} allowFullScreen loading="lazy" />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-400">
+            <span className="text-4xl">📍</span>
+            <p className="text-sm font-medium text-gray-500">Map view</p>
+            <p className="text-xs text-gray-400">Add a Google Maps embed URL in Admin → Pages</p>
+          </div>
+        )}
       </div>
 
       <div className="flex gap-3">
@@ -545,48 +582,31 @@ export default async function StaticPage({ params }: { params: Promise<{ slug: s
   const page = getPage(slug)
   if (!page) notFound()
 
-  // FAQ uses client interactivity
-  if (slug === 'faq') {
-    return (
-      <>
-        <Header />
-        <PageBox>
-          <div className="px-6 py-8">
-            <nav className="flex items-center gap-1.5 text-xs text-gray-400 mb-6">
-              <Link href="/" className="hover:text-gray-600">Home</Link>
-              <ChevronRight size={12} />
-              <span className="text-gray-700">{page.title}</span>
-            </nav>
-            <FaqPageContent />
-          </div>
-        </PageBox>
-        <Footer />
-      </>
-    )
-  }
+  // Fetch saved content from Supabase
+  const savedData = await getPageContent(slug)
 
-  // Support uses client links to WhatsApp
-  if (slug === 'support') {
-    return (
-      <>
-        <Header />
-        <PageBox>
-          <div className="px-6 py-8">
-            <nav className="flex items-center gap-1.5 text-xs text-gray-400 mb-6">
-              <Link href="/" className="hover:text-gray-600">Home</Link>
-              <ChevronRight size={12} />
-              <span className="text-gray-700">{page.title}</span>
-            </nav>
-            <h1 className="text-2xl font-extrabold text-gray-900 mb-2" style={{ fontFamily: 'var(--font-heading)' }}>
-              {page.title}
-            </h1>
-            <p className="text-sm text-gray-500 mb-8">{page.description}</p>
-            <SupportContent />
-          </div>
-        </PageBox>
-        <Footer />
-      </>
-    )
+  // Resolve the content node — structured pages pass savedData as props
+  function resolveNode() {
+    switch (slug) {
+      case 'faq':
+        return <FaqPageContent customItems={savedData?.items} />
+      case 'support':
+        return <SupportContent data={savedData} />
+      case 'team':
+        return <TeamContent data={savedData} />
+      case 'careers':
+        return <CareersContent data={savedData} />
+      case 'store-location':
+        return <StoreLocationContent data={savedData} />
+      case 'returns':
+      case 'terms':
+      case 'privacy':
+        return savedData?.content
+          ? <RichText text={savedData.content} />
+          : page.node
+      default:
+        return page.node
+    }
   }
 
   return (
@@ -603,7 +623,7 @@ export default async function StaticPage({ params }: { params: Promise<{ slug: s
             {page.title}
           </h1>
           <p className="text-sm text-gray-500 mb-8">{page.description}</p>
-          {page.node}
+          {resolveNode()}
         </div>
       </PageBox>
       <Footer />

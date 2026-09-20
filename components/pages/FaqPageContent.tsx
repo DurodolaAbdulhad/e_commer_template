@@ -55,7 +55,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
   )
 }
 
-export default function FaqPageContent() {
+export default function FaqPageContent({ customItems }: { customItems?: Array<{ q: string; a: string }> }) {
   return (
     <>
       <h1 className="text-2xl font-extrabold text-gray-900 mb-2" style={{ fontFamily: 'var(--font-heading)' }}>
@@ -64,17 +64,25 @@ export default function FaqPageContent() {
       <p className="text-sm text-gray-500 mb-8">Everything you need to know about shopping with {client.name}.</p>
 
       <div className="max-w-2xl space-y-8">
-        {faqs.map(section => (
-          <div key={section.category}>
-            <h2 className="text-xs font-bold uppercase tracking-widest mb-4 pb-2 border-b border-gray-100"
-              style={{ color: 'var(--brand-primary)' }}>
-              {section.category}
-            </h2>
-            <div>
-              {section.items.map(item => <FaqItem key={item.q} q={item.q} a={item.a} />)}
-            </div>
+        {customItems ? (
+          /* Custom items from admin — flat list */
+          <div>
+            {customItems.map((item, i) => <FaqItem key={i} q={item.q} a={item.a} />)}
           </div>
-        ))}
+        ) : (
+          /* Default hardcoded sections */
+          faqs.map(section => (
+            <div key={section.category}>
+              <h2 className="text-xs font-bold uppercase tracking-widest mb-4 pb-2 border-b border-gray-100"
+                style={{ color: 'var(--brand-primary)' }}>
+                {section.category}
+              </h2>
+              <div>
+                {section.items.map(item => <FaqItem key={item.q} q={item.q} a={item.a} />)}
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       <div className="max-w-2xl mt-10 p-5 bg-gray-50 border border-gray-100 rounded-xl">
