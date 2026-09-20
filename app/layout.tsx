@@ -7,7 +7,7 @@ import { WishlistProvider } from "@/hooks/useWishlist";
 import { AuthProvider } from "@/hooks/useAuth";
 import { CompareProvider } from "@/hooks/useCompare";
 import { client } from "@/config/client";
-import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { createClient } from "@/lib/supabase-server";
 import QuickViewModal from "@/components/product/QuickViewModal";
 import CompareBar from "@/components/compare/CompareBar";
 import NewsletterPopup from "@/components/ui/NewsletterPopup";
@@ -28,7 +28,7 @@ const bricolage = Bricolage_Grotesque({
 
 async function getSiteMeta() {
   try {
-    const supabase = createSupabaseServerClient()
+    const supabase = await createClient()
     const { data } = await supabase.from('site_settings').select('id,value').in('id', ['site_title','site_favicon'])
     const map: Record<string, string> = {}
     data?.forEach((r: any) => { map[r.id] = typeof r.value === 'string' ? r.value : String(r.value) })
