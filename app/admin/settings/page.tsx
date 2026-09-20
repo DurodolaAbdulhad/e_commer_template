@@ -12,7 +12,7 @@ const H_BG   = (client as any).headerBg ?? '#1a2638'
 async function uploadLogo(file: File): Promise<string> {
   const form = new FormData()
   form.append('file', file)
-  form.append('bucket', 'categories')
+  form.append('bucket', 'logos')
   const res = await fetch('/api/admin/upload', { method: 'POST', body: form })
   if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Upload failed') }
   const { url } = await res.json()

@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   const bucket = (form.get('bucket') as string | null) || 'products'
   if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 })
 
-  const ALLOWED_BUCKETS = ['products', 'banners', 'categories', 'avatars']
+  const ALLOWED_BUCKETS = ['products', 'banners', 'categories', 'avatars', 'logos']
   if (!ALLOWED_BUCKETS.includes(bucket)) {
     return NextResponse.json({ error: 'Invalid bucket' }, { status: 400 })
   }
@@ -31,6 +31,10 @@ export async function POST(req: NextRequest) {
   const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
 
   const supabase = getServiceClient()
+
+  // Create the bucket if it doesn't exist yet (ignore "already exists" error)
+  await supabase.storage.createBucket(bucket, { public: true }).catch(() => {})
+
   const { error } = await supabase.storage
     .from(bucket)
     .upload(filename, file, { contentType: file.type, upsert: false })
