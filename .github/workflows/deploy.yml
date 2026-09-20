@@ -1,0 +1,108 @@
+# ============================================================
+# CI/CD PIPELINE — Auto-deploy to cPanel on every git push
+# ============================================================
+#
+# HOW IT WORKS:
+#   1. You push code to GitHub (git push)
+#   2. GitHub builds the app on its own servers (no RAM cost on your cPanel)
+#   3. Built files are copied to your cPanel server via SSH
+#   4. App restarts automatically
+#
+# REQUIRED GITHUB SECRETS (Settings → Secrets → Actions → New repository secret):
+#   NEXT_PUBLIC_SUPABASE_URL          — your Supabase project URL
+#   NEXT_PUBLIC_SUPABASE_ANON_KEY     — your Supabase anon key
+#   NEXT_PUBLIC_SITE_URL              — https://yourclientdomain.com
+#   NEXT_PUBLIC_APP_URL               — https://yourclientdomain.com
+#   NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY   — pk_live_xxx  (or leave blank if using Flutterwave)
+#   NEXT_PUBLIC_FLW_PUBLIC_KEY        — FLWPUBK-xxx  (or leave blank if using Paystack)
+#   NEXT_PUBLIC_META_PIXEL_ID         — optional, leave blank to skip
+#   NEXT_PUBLIC_GA_MEASUREMENT_ID     — optional, leave blank to skip
+#   SSH_HOST                          — your cPanel server IP or domain
+#   SSH_USERNAME                      — your cPanel username
+#   SSH_PASSWORD                      — your cPanel password (or use SSH_PRIVATE_KEY below)
+#   DEPLOY_PATH                       — server path e.g. /home/username/public_html
+# ============================================================
+
+name: Build & Deploy
+
+on:
+  push:
+    branches:
+      - main          # Deploy automatically when you push to main
+  workflow_dispatch:  # Allow manual trigger from GitHub Actions tab
+
+jobs:
+  build-and-deploy:
+    name: Build on GitHub → Deploy to cPanel
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # ── Step 1: Download your code onto GitHub's server ────────────────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── Step 2: Install Node.js 20 ─────────────────────────────────────────
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # ── Step 3: Install dependencies ───────────────────────────────────────
+      - name: Install dependencies
+        run: npm ci
+
+      # ── Step 4: Build the app ───────────────────────────────────────────────
+      # NEXT_PUBLIC_* variables must be available at BUILD time (not just runtime)
+      # That is why they are passed here as environment variables from GitHub Secrets
+      - name: Build Next.js app
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL:          ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY:     ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SITE_URL:              ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+          NEXT_PUBLIC_APP_URL:               ${{ secrets.NEXT_PUBLIC_APP_URL }}
+          NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY:   ${{ secrets.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY }}
+          NEXT_PUBLIC_FLW_PUBLIC_KEY:        ${{ secrets.NEXT_PUBLIC_FLW_PUBLIC_KEY }}
+          NEXT_PUBLIC_META_PIXEL_ID:         ${{ secrets.NEXT_PUBLIC_META_PIXEL_ID }}
+          NEXT_PUBLIC_GA_MEASUREMENT_ID:     ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
+
+      # ── Step 5: Copy built files to your cPanel server via SSH ─────────────
+      # Copies: .next/ public/ package.json package-lock.json next.config.ts middleware.ts server.js
+      # Does NOT copy: node_modules (too large), .env.local (already on server)
+      - name: Deploy files to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host:     ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          source: >
+            .next,
+            public,
+            package.json,
+            package-lock.json,
+            next.config.ts,
+            middleware.ts,
+            server.js
+          target:   ${{ secrets.DEPLOY_PATH }}
+          rm: false   # do not delete existing files (preserves .env.local on server)
+
+      # ── Step 6: Install production dependencies on server & restart app ────
+      - name: Restart app on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:     ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            cd ${{ secrets.DEPLOY_PATH }}
+
+            # Install/update only production dependencies
+            npm ci --omit=dev
+
+            # Restart Phusion Passenger (cPanel's Node.js runner)
+            # Method 1: touch the restart file (works on most cPanel hosts)
+            mkdir -p tmp && touch tmp/restart.txt
+
+            echo "Deployment complete at $(date)"
