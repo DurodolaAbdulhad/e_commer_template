@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { Upload, Loader2, Check, Save, Image as ImageIcon, Type, RefreshCw, Globe, Smile } from 'lucide-react'
+import { Upload, Loader2, Check, Save, Image as ImageIcon, Type, RefreshCw, Globe, Smile, X } from 'lucide-react'
 import { getStoreSetting, saveStoreSetting } from '@/lib/admin-db'
 import { client } from '@/config/client'
 import toast from 'react-hot-toast'
@@ -36,8 +36,10 @@ export default function SettingsPage() {
   // site title & favicon
   const [siteTitle,   setSiteTitle]   = useState(client.name)
   const [siteFavicon, setSiteFavicon] = useState('')
-  const [savingMeta,  setSavingMeta]  = useState(false)
-  const [savedMeta,   setSavedMeta]   = useState(false)
+  const [savingMeta,       setSavingMeta]       = useState(false)
+  const [savedMeta,        setSavedMeta]        = useState(false)
+  const [faviconUploading, setFaviconUploading] = useState(false)
+  const faviconRef = useRef<HTMLInputElement>(null)
   // shared
   const [saving, setSaving] = useState(false)
   const [saved,  setSaved]  = useState(false)
@@ -102,6 +104,17 @@ export default function SettingsPage() {
         {parts[1] && <span style={{ color: textColor }}>{parts[1]}</span>}
       </span>
     )
+  }
+
+  async function handleFaviconUpload(file: File) {
+    setFaviconUploading(true)
+    try {
+      const url = await uploadLogo(file)
+      setSiteFavicon(url)
+      setSavedMeta(false)
+      toast.success('Favicon uploaded — click Save to apply')
+    } catch (e: any) { toast.error(e?.message || 'Upload failed') }
+    finally { setFaviconUploading(false) }
   }
 
   async function handleSaveMeta() {
@@ -294,24 +307,54 @@ export default function SettingsPage() {
 
           {/* Favicon */}
           <div className="flex items-start gap-3">
-            <Smile size={14} className="text-gray-400 flex-shrink-0 mt-2" />
-            <label className="text-xs font-medium text-gray-600 w-24 flex-shrink-0 mt-2">Favicon</label>
+            <Smile size={14} className="text-gray-400 flex-shrink-0 mt-2.5" />
+            <label className="text-xs font-medium text-gray-600 w-24 flex-shrink-0 mt-2.5">Favicon</label>
             <div className="flex-1 space-y-2">
-              <input
-                value={siteFavicon}
-                onChange={e => { setSiteFavicon(e.target.value); setSavedMeta(false) }}
-                placeholder="Paste emoji or image URL (e.g. 👜 or https://...)"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400"
-              />
-              <p className="text-[10px] text-gray-400">
-                Use a single emoji (👜 🛍️ 👠) — it becomes your browser tab icon. Or paste a direct image URL (.png, .ico).
-              </p>
+              {/* Current favicon preview + clear */}
               {siteFavicon && (
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-gray-400">Preview:</span>
-                  <span className="text-lg">{siteFavicon.startsWith('http') ? '🔗' : siteFavicon}</span>
+                <div className="flex items-center gap-2 p-2 bg-gray-50 border border-gray-200 rounded-xl">
+                  {siteFavicon.startsWith('http') ? (
+                    <img src={siteFavicon} alt="favicon" className="w-8 h-8 object-contain rounded" />
+                  ) : (
+                    <span className="text-2xl w-8 text-center">{siteFavicon}</span>
+                  )}
+                  <span className="flex-1 text-xs text-gray-500 font-mono truncate">{siteFavicon}</span>
+                  <button
+                    onClick={() => { setSiteFavicon(''); setSavedMeta(false) }}
+                    className="text-gray-400 hover:text-red-500 p-1 rounded">
+                    <X size={13} />
+                  </button>
                 </div>
               )}
+
+              {/* Upload button + URL input */}
+              <div className="flex gap-2">
+                <input
+                  value={siteFavicon}
+                  onChange={e => { setSiteFavicon(e.target.value); setSavedMeta(false) }}
+                  placeholder="Paste emoji (👜) or image URL, or upload →"
+                  className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400 min-w-0"
+                />
+                <button
+                  type="button"
+                  onClick={() => faviconRef.current?.click()}
+                  disabled={faviconUploading}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border border-gray-200 rounded-xl hover:bg-gray-50 whitespace-nowrap disabled:opacity-50 flex-shrink-0"
+                >
+                  {faviconUploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                  {faviconUploading ? 'Uploading…' : 'Upload'}
+                </button>
+                <input
+                  ref={faviconRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/ico,image/svg+xml,image/webp"
+                  className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleFaviconUpload(f); e.target.value = '' }}
+                />
+              </div>
+              <p className="text-[10px] text-gray-400">
+                Upload a PNG/ICO/SVG (recommended: 32×32 or 64×64 px), paste a URL, or type a single emoji.
+              </p>
             </div>
           </div>
 
@@ -322,8 +365,13 @@ export default function SettingsPage() {
             </p>
             <div className="px-4 py-3 flex items-center gap-2 bg-gray-100">
               <div className="flex items-center gap-1.5 bg-white rounded-t-lg px-3 py-1.5 text-xs text-gray-700 shadow-sm max-w-[220px]">
-                <span className="text-sm flex-shrink-0">
-                  {siteFavicon && !siteFavicon.startsWith('http') ? siteFavicon : '🌐'}
+                <span className="flex-shrink-0 flex items-center">
+                  {siteFavicon
+                    ? siteFavicon.startsWith('http')
+                      ? <img src={siteFavicon} alt="" className="w-4 h-4 object-contain" />
+                      : <span className="text-sm">{siteFavicon}</span>
+                    : <span className="text-sm">🌐</span>
+                  }
                 </span>
                 <span className="truncate font-medium">{siteTitle || client.name}</span>
               </div>
