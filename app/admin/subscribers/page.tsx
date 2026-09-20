@@ -15,7 +15,7 @@ export default function SubscribersPage() {
   }, [])
 
   function exportCSV() {
-    const csv = ['Email,Date', ...subscribers.map(s => `${s.email},${s.created_at ?? ''}`).join('\n')].join('\n')
+    const csv = ['Email,Date', ...subscribers.map(s => `${s.email},${s.created_at ?? ''}`)].join('\n')
     const a = document.createElement('a')
     a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv)
     a.download = 'subscribers.csv'

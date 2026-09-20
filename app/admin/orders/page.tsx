@@ -35,9 +35,11 @@ export default function AdminOrdersPage() {
   useEffect(() => { load() }, [load])
 
   async function handleStatusChange(orderId: string, newStatus: string) {
-    await updateOrderStatus(orderId, newStatus)
-    toast.success(`Order marked as ${newStatus}`)
-    load()
+    try {
+      await updateOrderStatus(orderId, newStatus)
+      toast.success(`Order marked as ${newStatus}`)
+      load()
+    } catch (e: any) { toast.error(e?.message ?? 'Failed to update order') }
   }
 
   const filtered = orders.filter(o =>

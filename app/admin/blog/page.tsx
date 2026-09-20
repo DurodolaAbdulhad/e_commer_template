@@ -36,10 +36,11 @@ export default function AdminBlogPage() {
   useEffect(() => { load() }, [])
 
   function set(key: string, val: any) {
-    setForm((p: any) => ({ ...p, [key]: val }))
-    if (key === 'title' && !editing) {
-      setForm((p: any) => ({ ...p, slug: slugify(val) }))
-    }
+    setForm((p: any) => ({
+      ...p,
+      [key]: val,
+      ...(key === 'title' && !editing ? { slug: slugify(val) } : {}),
+    }))
   }
 
   function openNew() {

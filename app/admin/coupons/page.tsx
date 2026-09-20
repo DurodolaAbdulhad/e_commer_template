@@ -64,7 +64,7 @@ export default function CouponsPage() {
       }
       closeModal()
       load()
-    } catch { toast.error('Failed to save coupon') }
+    } catch (e: any) { console.error('createCoupon:', e); toast.error(e?.message ?? 'Failed to save coupon') }
     setSaving(false)
   }
 

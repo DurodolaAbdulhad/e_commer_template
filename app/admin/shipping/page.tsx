@@ -318,10 +318,10 @@ export default function ShippingPage() {
                                   <input type="checkbox" checked={isActive}
                                     onChange={e => {
                                       const z = [...zones]
-                                      const cur = z[zi].areaRates ?? []
+                                      const areaRates = z[zi].areaRates ?? []
                                       z[zi] = { ...z[zi], areaRates: e.target.checked
-                                        ? [...cur, { area, rate: z[zi].rate }]
-                                        : cur.filter(a => a.area !== area) }
+                                        ? [...areaRates, { area, rate: z[zi].rate }]
+                                        : areaRates.filter(a => a.area !== area) }
                                       setZones(z); setSaved(false)
                                     }}
                                     className="w-3.5 h-3.5 accent-blue-600 flex-shrink-0" />
