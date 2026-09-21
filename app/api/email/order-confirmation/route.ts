@@ -36,12 +36,24 @@ export async function POST(req: NextRequest) {
   const itemRows = (order.items ?? []).map((item: any) => `
     <tr>
       <td style="padding:10px 0;border-bottom:1px solid #f0f0f0;">
-        <strong style="display:block;color:#111;font-size:14px;">${esc(item.name)}</strong>
-        ${item.variant ? `<span style="color:#888;font-size:12px;">${esc(item.variant)}</span>` : ''}
-        <span style="color:#888;font-size:12px;">Qty: ${item.quantity}</span>
-      </td>
-      <td style="padding:10px 0;border-bottom:1px solid #f0f0f0;text-align:right;white-space:nowrap;font-weight:700;color:#111;font-size:14px;">
-        ${formatNaira(item.price * item.quantity)}
+        <table cellpadding="0" cellspacing="0" style="width:100%;">
+          <tr>
+            ${item.image ? `
+            <td style="width:56px;padding-right:12px;vertical-align:top;">
+              <img src="${esc(item.image)}" alt="${esc(item.name)}"
+                width="56" height="56"
+                style="border-radius:8px;object-fit:cover;display:block;border:1px solid #f0f0f0;" />
+            </td>` : ''}
+            <td style="vertical-align:top;">
+              <strong style="display:block;color:#111;font-size:14px;">${esc(item.name)}</strong>
+              ${item.variant ? `<span style="color:#888;font-size:12px;display:block;">${esc(item.variant)}</span>` : ''}
+              <span style="color:#888;font-size:12px;">Qty: ${item.quantity}</span>
+            </td>
+            <td style="text-align:right;vertical-align:top;white-space:nowrap;font-weight:700;color:#111;font-size:14px;padding-left:12px;">
+              ${formatNaira(item.price * item.quantity)}
+            </td>
+          </tr>
+        </table>
       </td>
     </tr>
   `).join('')

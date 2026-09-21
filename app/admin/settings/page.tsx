@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { Upload, Loader2, Check, Save, Image as ImageIcon, Type, RefreshCw, Globe, Smile, X } from 'lucide-react'
+import { Upload, Loader2, Check, Save, Image as ImageIcon, Type, RefreshCw, Globe, Smile, X, Palette, Radio } from 'lucide-react'
 import { getStoreSetting, saveStoreSetting } from '@/lib/admin-db'
 import { client } from '@/config/client'
 import toast from 'react-hot-toast'
@@ -45,6 +45,19 @@ export default function SettingsPage() {
   const [saved,  setSaved]  = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // brand color
+  const [brandColor,      setBrandColor]      = useState(client.colors?.primary ?? ACCENT)
+  const [savingBrand,     setSavingBrand]     = useState(false)
+  const [savedBrand,      setSavedBrand]      = useState(false)
+
+  // tracking pixels
+  const [gaId,            setGaId]            = useState('')
+  const [fbPixel,         setFbPixel]         = useState('')
+  const [tiktokPixel,     setTiktokPixel]     = useState('')
+  const [clarityId,       setClarityId]       = useState('')
+  const [savingTracking,  setSavingTracking]  = useState(false)
+  const [savedTracking,   setSavedTracking]   = useState(false)
+
   useEffect(() => {
     getStoreSetting('site_title').then(v   => { if (v) setSiteTitle(v) })
     getStoreSetting('site_favicon').then(v => { if (v) setSiteFavicon(v) })
@@ -57,6 +70,11 @@ export default function SettingsPage() {
     getStoreSetting('logo_text_weight').then(v=> { if (v) setTextWeight(v as any) })
     getStoreSetting('logo_accent_word').then(v => { if (v) setAccentWord(v) })
     getStoreSetting('logo_accent_color').then(v=> { if (v) setAccentColor(v) })
+    getStoreSetting('brand_color').then(v  => { if (v) setBrandColor(v) })
+    getStoreSetting('ga_id').then(v        => { if (v) setGaId(v) })
+    getStoreSetting('fb_pixel').then(v     => { if (v) setFbPixel(v) })
+    getStoreSetting('tiktok_pixel').then(v => { if (v) setTiktokPixel(v) })
+    getStoreSetting('clarity_id').then(v   => { if (v) setClarityId(v) })
   }, [])
 
   async function handleFile(file: File) {
@@ -126,6 +144,29 @@ export default function SettingsPage() {
       toast.success('Site title & favicon saved — changes apply on next page load')
     } catch (e: any) { toast.error(e?.message || 'Save failed') }
     finally { setSavingMeta(false) }
+  }
+
+  async function handleSaveBrand() {
+    setSavingBrand(true)
+    try {
+      await saveStoreSetting('brand_color', brandColor.trim())
+      setSavedBrand(true)
+      toast.success('Brand color saved — reload the storefront to see it')
+    } catch (e: any) { toast.error(e?.message || 'Save failed') }
+    finally { setSavingBrand(false) }
+  }
+
+  async function handleSaveTracking() {
+    setSavingTracking(true)
+    try {
+      await saveStoreSetting('ga_id',        gaId.trim())
+      await saveStoreSetting('fb_pixel',     fbPixel.trim())
+      await saveStoreSetting('tiktok_pixel', tiktokPixel.trim())
+      await saveStoreSetting('clarity_id',   clarityId.trim())
+      setSavedTracking(true)
+      toast.success('Tracking pixels saved — active on next page load')
+    } catch (e: any) { toast.error(e?.message || 'Save failed') }
+    finally { setSavingTracking(false) }
   }
 
   return (
@@ -384,6 +425,95 @@ export default function SettingsPage() {
               style={{ backgroundColor: savedMeta ? '#16a34a' : ACCENT }}>
               {savedMeta ? <><Check size={13} /> Saved</>
                 : savingMeta ? <><Save size={13} className="animate-pulse" /> Saving…</>
+                : <><Save size={13} /> Save</>}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Brand Color ──────────────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-gray-100 bg-gray-50">
+          <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wide flex items-center gap-2">
+            <Palette size={13} /> Brand Color
+          </h3>
+          <p className="text-[10px] text-gray-400 mt-0.5">Sets the primary accent color across the whole storefront</p>
+        </div>
+        <div className="px-5 py-5 space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="relative flex-shrink-0">
+              <input
+                type="color"
+                value={brandColor}
+                onChange={e => { setBrandColor(e.target.value); setSavedBrand(false) }}
+                className="w-14 h-14 rounded-xl border border-gray-200 cursor-pointer p-1"
+                style={{ backgroundColor: brandColor }}
+              />
+            </div>
+            <div className="flex-1">
+              <input
+                value={brandColor}
+                onChange={e => { setBrandColor(e.target.value); setSavedBrand(false) }}
+                placeholder="#e84c3d"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400 font-mono"
+              />
+              <p className="text-[10px] text-gray-400 mt-1">Enter a hex color code or use the color picker</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-gray-500 flex-1">Preview:</p>
+            <div className="flex gap-2 items-center">
+              <span className="px-3 py-1 text-xs font-bold rounded-lg text-white" style={{ backgroundColor: brandColor }}>Button</span>
+              <span className="text-sm font-semibold" style={{ color: brandColor }}>Link text</span>
+              <span className="w-4 h-4 rounded-full border-2 flex-shrink-0" style={{ borderColor: brandColor }} />
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <button onClick={handleSaveBrand} disabled={savingBrand}
+              className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded-xl text-white hover:opacity-90 disabled:opacity-60"
+              style={{ backgroundColor: savedBrand ? '#16a34a' : ACCENT }}>
+              {savedBrand ? <><Check size={13} /> Saved</>
+                : savingBrand ? <><Save size={13} className="animate-pulse" /> Saving…</>
+                : <><Save size={13} /> Save</>}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Tracking Pixels ──────────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-gray-100 bg-gray-50">
+          <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wide flex items-center gap-2">
+            <Radio size={13} /> Tracking & Analytics Pixels
+          </h3>
+          <p className="text-[10px] text-gray-400 mt-0.5">Paste your IDs/Measurement IDs — scripts inject automatically on every page</p>
+        </div>
+        <div className="px-5 py-5 space-y-4">
+          {[
+            { label: 'Google Analytics 4 — Measurement ID', placeholder: 'G-XXXXXXXXXX', value: gaId, set: (v: string) => { setGaId(v); setSavedTracking(false) } },
+            { label: 'Facebook / Meta Pixel ID',            placeholder: '123456789012345', value: fbPixel, set: (v: string) => { setFbPixel(v); setSavedTracking(false) } },
+            { label: 'TikTok Pixel ID',                     placeholder: 'CXXXXXXXXXXXXXXXX', value: tiktokPixel, set: (v: string) => { setTiktokPixel(v); setSavedTracking(false) } },
+            { label: 'Microsoft Clarity Project ID',        placeholder: 'xxxxxxxxxx', value: clarityId, set: (v: string) => { setClarityId(v); setSavedTracking(false) } },
+          ].map(field => (
+            <div key={field.label}>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">{field.label}</label>
+              <input
+                value={field.value}
+                onChange={e => field.set(e.target.value)}
+                placeholder={field.placeholder}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400 font-mono"
+              />
+            </div>
+          ))}
+          <p className="text-[10px] text-gray-400">
+            Leave a field empty to disable that pixel. Microsoft Clarity provides heatmaps and session recordings.
+          </p>
+          <div className="flex justify-end">
+            <button onClick={handleSaveTracking} disabled={savingTracking}
+              className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded-xl text-white hover:opacity-90 disabled:opacity-60"
+              style={{ backgroundColor: savedTracking ? '#16a34a' : ACCENT }}>
+              {savedTracking ? <><Check size={13} /> Saved</>
+                : savingTracking ? <><Save size={13} className="animate-pulse" /> Saving…</>
                 : <><Save size={13} /> Save</>}
             </button>
           </div>

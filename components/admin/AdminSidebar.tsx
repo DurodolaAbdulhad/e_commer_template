@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Package, ShoppingBag, Tag, Image, Users,
   Settings, LogOut, ExternalLink, ChevronRight, ChevronDown, Mail, FileText, Ticket, Bell,
-  Zap, Gift, Layers, RotateCcw, FileEdit, ShoppingCart, UserCog, UserCheck, LayoutList, SlidersHorizontal, Truck,
+  Zap, Gift, Layers, RotateCcw, FileEdit, ShoppingCart, UserCog, UserCheck, LayoutList, SlidersHorizontal, Truck, BarChart2,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useAdmin } from '@/hooks/useAdmin'
@@ -50,6 +50,7 @@ const NAV: NavItem[] = [
   { href: '/admin/staff',            label: 'Staff & Roles',   icon: UserCog },
   { href: '/admin/blog',             label: 'Blog Posts',      icon: FileText },
   { href: '/admin/pages',            label: 'Pages Editor',    icon: FileText },
+  { href: '/admin/analytics',        label: 'Analytics',       icon: BarChart2 },
 ]
 
 function NavLink({ item, depth = 0 }: { item: NavItem; depth?: number }) {

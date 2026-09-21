@@ -168,9 +168,13 @@ export default function CheckoutPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           items: (items as any).map((i: any) => ({ id: i.id, quantity: i.quantity })),
-          couponCode:      couponApplied,   // Fix B: send code, not pre-computed amount
+          couponCode:      couponApplied,
           giftCardDiscount,
           reference,
+          state:           form.state   ?? '',
+          area:            form.area    ?? '',
+          shipMethod,
+          selfLogisticsFee: shippingSettings?.selfLogisticsFee ?? 0,
         }),
       })
       if (!priceRes.ok) {

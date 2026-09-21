@@ -26,9 +26,13 @@ export async function POST(req: NextRequest) {
 
   const {
     items,
-    couponCode   = '',   // Fix B: accept coupon CODE not pre-computed discount
+    couponCode       = '',
     giftCardDiscount = 0,
     reference,
+    state            = '',  // customer's selected state for zone shipping
+    area             = '',  // customer's selected area
+    shipMethod       = 'store_delivery',
+    selfLogisticsFee = 0,
   } = body
 
   if (!Array.isArray(items) || !items.length) {
@@ -54,7 +58,28 @@ export async function POST(req: NextRequest) {
     subtotal += product.price * qty
   }
 
-  const shipping = getShippingCost(subtotal)
+  // Load shipping overrides from Supabase so admin-saved rates are respected
+  let shippingOverrides: any = {}
+  try {
+    const { isServiceClientReady, getServiceClient } = await import('@/lib/supabase-service')
+    if (isServiceClientReady()) {
+      const sb = getServiceClient()
+      const keys = ['shipping_flat_rate','shipping_free_above','shipping_zones_enabled','shipping_zones']
+      const { data: rows } = await sb.from('site_settings').select('id,value').in('id', keys.map(k => `store_${k}`))
+      const m: Record<string, any> = {}
+      rows?.forEach((r: any) => { m[r.id.replace('store_', '')] = r.value })
+      shippingOverrides = {
+        flatRate:     m.shipping_flat_rate     != null ? Number(m.shipping_flat_rate)  : undefined,
+        freeAbove:    m.shipping_free_above    != null ? Number(m.shipping_free_above) : undefined,
+        zonesEnabled: Boolean(m.shipping_zones_enabled),
+        zones:        Array.isArray(m.shipping_zones) ? m.shipping_zones : [],
+      }
+    }
+  } catch { /* non-fatal — fall back to client config */ }
+
+  const shipping = shipMethod === 'self'
+    ? Math.max(0, Number(selfLogisticsFee) || 0)
+    : getShippingCost(subtotal, shippingOverrides, state, area)
 
   // ── 2. Validate coupon server-side ───────────────────────────────────────
   let couponDiscount = 0
