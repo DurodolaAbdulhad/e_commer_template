@@ -182,9 +182,10 @@ export default function CheckoutPage() {
         return toast.error('Could not verify order total. Please refresh and try again.')
       }
       const verified = await priceRes.json()
-      const verifiedTotal      = verified.total         as number
-      const verifiedSig        = verified.sig           as string
-      const verifiedCouponDisc = verified.couponDiscount as number
+      const verifiedTotal      = verified.total           as number
+      const verifiedSig        = verified.sig             as string
+      const verifiedCouponDisc = verified.couponDiscount  as number
+      const verifiedShipping   = verified.shipping        as number
 
       const gateway = client.paymentGateway ?? 'paystack'
 
@@ -240,7 +241,7 @@ export default function CheckoutPage() {
           status: 'pending',
           total: verifiedTotal,
           subtotal,
-          shipping_cost: shipping,
+          shipping_cost: verifiedShipping,
           discount: verifiedCouponDisc + (autoDiscount?.value ?? 0) + giftCardDiscount + wholesaleDiscount,
           vat: vatAmount,
           items: (items as any[]).map((i: any) => ({
@@ -326,7 +327,7 @@ export default function CheckoutPage() {
         image: i.images?.[0] ?? null,
       })),
       subtotal,
-      shipping_cost: shipping,
+      shipping_cost: verifiedShipping ?? shipping,
       discount: finalCouponDisc + (autoDiscount?.value ?? 0) + giftCardDiscount + wholesaleDiscount,
       vat: vatAmount,
       total: finalTotal,

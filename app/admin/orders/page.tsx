@@ -2,8 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { Search, ChevronRight, ShoppingBag } from 'lucide-react'
-import { getOrders, updateOrderStatus } from '@/lib/admin-db'
+import { Search, ChevronRight, ShoppingBag, AlertCircle } from 'lucide-react'
 import { formatPrice } from '@/lib/utils'
 import toast from 'react-hot-toast'
 
@@ -24,19 +23,38 @@ export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(true)
   const [search,  setSearch]  = useState('')
   const [status,  setStatus]  = useState('')
+  const [dbError, setDbError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
-    const data = await getOrders({ status })
-    setOrders(data)
-    setLoading(false)
+    setDbError(null)
+    try {
+      const url = `/api/admin/orders${status ? `?status=${encodeURIComponent(status)}` : ''}`
+      const res = await fetch(url)
+      const json = await res.json()
+      if (json.error && json.orders === undefined) {
+        setDbError(json.error)
+      } else {
+        setOrders(json.orders ?? [])
+        if (json.error) setDbError(json.error)  // partial error (DB ready but query failed)
+      }
+    } catch (e: any) {
+      setDbError(e?.message ?? 'Failed to load orders')
+    } finally {
+      setLoading(false)
+    }
   }, [status])
 
   useEffect(() => { load() }, [load])
 
   async function handleStatusChange(orderId: string, newStatus: string) {
     try {
-      await updateOrderStatus(orderId, newStatus)
+      const res = await fetch('/api/admin/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: orderId, status: newStatus }),
+      })
+      if (!res.ok) throw new Error((await res.json()).error ?? 'Failed')
       toast.success(`Order marked as ${newStatus}`)
       load()
     } catch (e: any) { toast.error(e?.message ?? 'Failed to update order') }
@@ -51,6 +69,17 @@ export default function AdminOrdersPage() {
 
   return (
     <div className="space-y-4">
+      {/* DB error banner */}
+      {dbError && (
+        <div className="flex items-start gap-3 px-4 py-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-700">
+          <AlertCircle size={16} className="mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold">Database error</p>
+            <p className="text-xs text-red-600 mt-0.5">{dbError}</p>
+            <p className="text-xs text-red-500 mt-1">Check that SUPABASE_SERVICE_ROLE_KEY is set in your environment variables and the migration SQL has been run.</p>
+          </div>
+        </div>
+      )}
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-48">
@@ -91,7 +120,7 @@ export default function AdminOrdersPage() {
         ) : filtered.length === 0 ? (
           <div className="py-16 text-center">
             <ShoppingBag size={28} className="text-gray-200 mx-auto mb-2" />
-            <p className="text-sm text-gray-400">No orders found.</p>
+            <p className="text-sm text-gray-400">{dbError ? 'Could not load orders — see error above.' : 'No orders found.'}</p>
           </div>
         ) : (
           filtered.map(order => {
