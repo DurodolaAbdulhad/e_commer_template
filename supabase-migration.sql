@@ -331,3 +331,19 @@ CREATE POLICY "anon_all_admin_users"         ON admin_users          FOR ALL TO 
 CREATE POLICY "anon_all_abandoned_carts"     ON abandoned_carts      FOR ALL TO anon USING (true) WITH CHECK (true);
 CREATE POLICY "anon_all_site_settings"       ON site_settings        FOR ALL TO anon USING (true) WITH CHECK (true);
 CREATE POLICY "anon_all_page_views"          ON page_views           FOR ALL TO anon USING (true) WITH CHECK (true);
+
+-- ── Safe column additions — run on existing databases without deleting data ───
+-- These ALTER TABLE … ADD COLUMN IF NOT EXISTS statements add new columns to
+-- tables that may already exist in a customer's Supabase project.
+-- They are completely safe to re-run: IF NOT EXISTS prevents duplicate errors.
+
+-- Categories: hierarchy + visibility + ordering
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS parent_id  text REFERENCES categories(id) ON DELETE SET NULL;
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS is_active  boolean NOT NULL DEFAULT true;
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS sort_order int     NOT NULL DEFAULT 0;
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS description text;
+
+-- Products: marketing segments (Trending, Best Seller)
+ALTER TABLE products ADD COLUMN IF NOT EXISTS is_trending     boolean NOT NULL DEFAULT false;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS is_best_seller  boolean NOT NULL DEFAULT false;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS is_new_arrival  boolean NOT NULL DEFAULT false;

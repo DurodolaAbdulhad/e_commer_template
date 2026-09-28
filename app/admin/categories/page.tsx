@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import Image from 'next/image'
-import { Plus, Edit2, Trash2, Check, X, Tag, Upload, Loader2 } from 'lucide-react'
+import { Plus, Edit2, Trash2, Check, X, Tag, Upload, Loader2, ChevronRight, Eye, EyeOff } from 'lucide-react'
 import { getCategories, createCategory, updateCategory, deleteCategory } from '@/lib/admin-db'
 import toast from 'react-hot-toast'
 
@@ -88,14 +88,20 @@ function ImagePicker({ value, onChange }: { value: string; onChange: (v: string)
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<any[]>([])
   const [loading,    setLoading]    = useState(true)
-  const [editingId,  setEditingId]  = useState<string | null>(null)
-  const [editName,   setEditName]   = useState('')
-  const [editSlug,   setEditSlug]   = useState('')
-  const [editImage,  setEditImage]  = useState('')
-  const [newName,    setNewName]    = useState('')
-  const [newSlug,    setNewSlug]    = useState('')
-  const [newImage,   setNewImage]   = useState('')
-  const [adding,     setAdding]     = useState(false)
+  const [editingId,      setEditingId]      = useState<string | null>(null)
+  const [editName,       setEditName]       = useState('')
+  const [editSlug,       setEditSlug]       = useState('')
+  const [editImage,      setEditImage]      = useState('')
+  const [editParentId,   setEditParentId]   = useState<string>('')
+  const [editIsActive,   setEditIsActive]   = useState(true)
+  const [editSortOrder,  setEditSortOrder]  = useState(0)
+  const [newName,        setNewName]        = useState('')
+  const [newSlug,        setNewSlug]        = useState('')
+  const [newImage,       setNewImage]       = useState('')
+  const [newParentId,    setNewParentId]    = useState<string>('')
+  const [newIsActive,    setNewIsActive]    = useState(true)
+  const [newSortOrder,   setNewSortOrder]   = useState(0)
+  const [adding,         setAdding]         = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -112,9 +118,12 @@ export default function CategoriesPage() {
         name: newName.trim(),
         slug: newSlug || slugify(newName),
         image: newImage || null,
+        parent_id: newParentId || null,
+        is_active: newIsActive,
+        sort_order: newSortOrder,
       })
       toast.success('Category added')
-      setNewName(''); setNewSlug(''); setNewImage(''); setAdding(false)
+      setNewName(''); setNewSlug(''); setNewImage(''); setNewParentId(''); setNewIsActive(true); setNewSortOrder(0); setAdding(false)
       load()
     } catch (err: any) { toast.error(err?.message) }
   }
@@ -126,6 +135,9 @@ export default function CategoriesPage() {
         name: editName.trim(),
         slug: editSlug || slugify(editName),
         image: editImage || null,
+        parent_id: editParentId || null,
+        is_active: editIsActive,
+        sort_order: editSortOrder,
       })
       toast.success('Category updated')
       setEditingId(null)
@@ -145,7 +157,22 @@ export default function CategoriesPage() {
     setEditName(cat.name)
     setEditSlug(cat.slug)
     setEditImage(cat.image || '')
+    setEditParentId(cat.parent_id || '')
+    setEditIsActive(cat.is_active !== false)
+    setEditSortOrder(cat.sort_order ?? 0)
   }
+
+  // Build parent-first grouped list for display: parents with their children indented below
+  const parentCats = categories.filter((c: any) => !c.parent_id)
+  const childMap: Record<string, any[]> = {}
+  categories.forEach((c: any) => { if (c.parent_id) { (childMap[c.parent_id] = childMap[c.parent_id] || []).push(c) } })
+  const flatList: Array<{ cat: any; isChild: boolean }> = []
+  parentCats.forEach((p: any) => {
+    flatList.push({ cat: p, isChild: false })
+    ;(childMap[p.id] || []).forEach((c: any) => flatList.push({ cat: c, isChild: true }))
+  })
+  // Orphaned children (parent deleted) appended at end
+  categories.forEach((c: any) => { if (c.parent_id && !categories.find((p: any) => p.id === c.parent_id)) flatList.push({ cat: c, isChild: false }) })
 
   return (
     <div className="max-w-3xl space-y-4">
@@ -175,9 +202,25 @@ export default function CategoriesPage() {
                 placeholder="slug (auto)"
                 className="px-3 py-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-gray-400 font-mono text-gray-500" />
             </div>
+            <div className="grid grid-cols-3 gap-2">
+              <select value={newParentId} onChange={e => setNewParentId(e.target.value)}
+                className="px-2 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-gray-400 col-span-1">
+                <option value="">Top-level (no parent)</option>
+                {categories.filter((c: any) => !c.parent_id).map((c: any) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <input type="number" value={newSortOrder} onChange={e => setNewSortOrder(Number(e.target.value))}
+                placeholder="Sort order"
+                className="px-2 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-gray-400" />
+              <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+                <input type="checkbox" checked={newIsActive} onChange={e => setNewIsActive(e.target.checked)} className="rounded" />
+                Active (visible)
+              </label>
+            </div>
             <ImagePicker value={newImage} onChange={setNewImage} />
             <div className="flex justify-end gap-2">
-              <button onClick={() => { setAdding(false); setNewName(''); setNewSlug(''); setNewImage('') }}
+              <button onClick={() => { setAdding(false); setNewName(''); setNewSlug(''); setNewImage(''); setNewParentId(''); setNewIsActive(true); setNewSortOrder(0) }}
                 className="px-3 py-1.5 text-xs rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600">
                 Cancel
               </button>
@@ -191,10 +234,11 @@ export default function CategoriesPage() {
         )}
 
         {/* Column headers */}
-        <div className="grid grid-cols-[44px_1fr_150px_72px] gap-3 px-5 py-2.5 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+        <div className="grid grid-cols-[44px_1fr_120px_60px_72px] gap-3 px-5 py-2.5 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
           <span>Icon</span>
           <span>Name</span>
           <span>Slug</span>
+          <span className="text-center">Active</span>
           <span className="text-center">Actions</span>
         </div>
 
@@ -209,7 +253,7 @@ export default function CategoriesPage() {
             <p className="text-sm text-gray-400">No categories yet.</p>
           </div>
         ) : (
-          categories.map(cat => (
+          flatList.map(({ cat, isChild }) => (
             <div key={cat.id} className="border-b border-gray-50 last:border-0">
               {editingId === cat.id ? (
                 // ── Edit mode ──────────────────────────────────────────────
@@ -219,6 +263,22 @@ export default function CategoriesPage() {
                       className="px-2 py-1.5 text-sm border border-gray-300 rounded-lg outline-none" />
                     <input value={editSlug} onChange={e => setEditSlug(e.target.value)}
                       className="px-2 py-1.5 text-xs border border-gray-300 rounded-lg outline-none font-mono text-gray-500" />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <select value={editParentId} onChange={e => setEditParentId(e.target.value)}
+                      className="px-2 py-1.5 text-xs border border-gray-300 rounded-lg outline-none">
+                      <option value="">Top-level (no parent)</option>
+                      {categories.filter((c: any) => !c.parent_id && c.id !== cat.id).map((c: any) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                    <input type="number" value={editSortOrder} onChange={e => setEditSortOrder(Number(e.target.value))}
+                      placeholder="Sort order"
+                      className="px-2 py-1.5 text-xs border border-gray-300 rounded-lg outline-none" />
+                    <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+                      <input type="checkbox" checked={editIsActive} onChange={e => setEditIsActive(e.target.checked)} className="rounded" />
+                      Active
+                    </label>
                   </div>
                   <ImagePicker value={editImage} onChange={setEditImage} />
                   <div className="flex justify-end gap-2">
@@ -235,16 +295,25 @@ export default function CategoriesPage() {
                 </div>
               ) : (
                 // ── View mode ──────────────────────────────────────────────
-                <div className="grid grid-cols-[44px_1fr_150px_72px] gap-3 items-center px-5 py-3 hover:bg-gray-50 transition-colors group">
+                <div className={`grid grid-cols-[44px_1fr_120px_60px_72px] gap-3 items-center px-5 py-3 hover:bg-gray-50 transition-colors group ${isChild ? 'bg-gray-50/40' : ''}`}
+                  style={isChild ? { paddingLeft: '44px' } : {}}>
                   <div className="w-9 h-9 rounded-lg border border-gray-100 bg-gray-50 overflow-hidden flex items-center justify-center">
                     {cat.image ? (
                       <Image src={cat.image} alt={cat.name} width={36} height={36} className="object-cover w-full h-full" />
                     ) : (
-                      <Tag size={14} className="text-gray-300" />
+                      <Tag size={14} className={isChild ? 'text-gray-200' : 'text-gray-300'} />
                     )}
                   </div>
-                  <p className="text-sm font-medium text-gray-700">{cat.name}</p>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {isChild && <ChevronRight size={11} className="text-gray-300 shrink-0" />}
+                    <p className={`text-sm font-medium truncate ${cat.is_active === false ? 'text-gray-400 line-through' : 'text-gray-700'}`}>{cat.name}</p>
+                  </div>
                   <p className="text-xs text-gray-400 font-mono truncate">{cat.slug}</p>
+                  <div className="flex justify-center">
+                    {cat.is_active === false
+                      ? <EyeOff size={13} className="text-gray-300" title="Hidden" />
+                      : <Eye size={13} className="text-green-500" title="Visible" />}
+                  </div>
                   <div className="flex items-center gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={() => startEdit(cat)}
                       className="w-7 h-7 flex items-center justify-center rounded hover:bg-blue-50">

@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { ChevronLeft, ChevronRight, ShoppingCart, Zap } from 'lucide-react'
 import { useCart } from '@/hooks/useCart'
 import { formatPrice, getDiscount } from '@/lib/utils'
+import { getFlashDeals } from '@/lib/admin-db'
 import toast from 'react-hot-toast'
 
 const ACCENT = '#e84c3d'
@@ -73,16 +74,13 @@ export default function FlashDeals() {
   const [canRight, setCanRight] = useState(true)
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('admin_products')
-      const all: any[] = raw ? JSON.parse(raw) : []
-      const flash = all.filter(p => p.is_flash_deal && p.is_active)
+    getFlashDeals().then(flash => {
       if (flash.length) {
         setDeals(flash)
-        const times = flash.filter(p => p.flash_deal_end).map(p => new Date(p.flash_deal_end).getTime())
+        const times = flash.filter((p: any) => p.flash_deal_end).map((p: any) => new Date(p.flash_deal_end).getTime())
         if (times.length) setEndTime(new Date(Math.min(...times)).toISOString())
+        else { const end = new Date(); end.setHours(end.getHours() + 8); setEndTime(end.toISOString()) }
       } else {
-        // Inline fallback — same image repeated so slides are visible in demo
         const IMG = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600'
         setDeals([
           { id: 'f1', name: 'Wireless Bluetooth Headphones', slug: 'wireless-bluetooth-headphones', price: 25000, compare_price: 35000, images: [IMG], rating: 4.5, review_count: 128, stock: 12 },
@@ -95,7 +93,7 @@ export default function FlashDeals() {
         const end = new Date(); end.setHours(end.getHours() + 8)
         setEndTime(end.toISOString())
       }
-    } catch {}
+    }).catch(() => {})
   }, [])
 
   function onScroll() {

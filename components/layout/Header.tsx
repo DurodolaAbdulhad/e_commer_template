@@ -11,7 +11,7 @@ import { client } from '@/config/client'
 import { industries } from '@/config/industries'
 import CartDrawer from '@/components/cart/CartDrawer'
 import SearchDropdown from '@/components/search/SearchDropdown'
-import { getStoreSetting } from '@/lib/admin-db'
+import { getStoreSetting, getCategories } from '@/lib/admin-db'
 
 const H_BG     = (client as any).headerBg ?? '#1a2638'
 const NAV_BG   = (client as any).headerBg ?? '#1e3045'
@@ -45,6 +45,7 @@ export default function Header() {
   const [logoTextWeight, setLogoTextWeight] = useState<string>('800')
   const [logoAccentWord, setLogoAccentWord] = useState<string>('')
   const [logoAccentColor,setLogoAccentColor]= useState<string>(ACCENT)
+  const [dbCategories,   setDbCategories]   = useState<any[]>([])
   const searchWrapRef = useRef<HTMLDivElement>(null)
 
   // Load logo from site_settings (overrides static config)
@@ -58,6 +59,9 @@ export default function Header() {
     getStoreSetting('logo_text_weight').then((v: string | null) => { if (v) setLogoTextWeight(v) }).catch(() => {})
     getStoreSetting('logo_accent_word').then((v: string | null) => { if (v) setLogoAccentWord(v) }).catch(() => {})
     getStoreSetting('logo_accent_color').then((v: string | null)=> { if (v) setLogoAccentColor(v) }).catch(() => {})
+    getCategories().then((cats: any[]) => {
+      if (cats.length) setDbCategories(cats)
+    }).catch(() => {})
   }, [])
 
   // Close dropdown on outside click
@@ -72,7 +76,25 @@ export default function Header() {
   }, [])
 
   const preset     = industries[client.industry as keyof typeof industries] ?? industries.general
-  const categories = preset.categories
+  // Use DB categories when loaded; fall back to static preset names as strings
+  const navCategories: Array<{ name: string; slug: string; isParent: boolean; children: Array<{ name: string; slug: string }> }> =
+    dbCategories.length
+      ? dbCategories
+          .filter((c: any) => !c.parent_id && c.is_active !== false)
+          .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name))
+          .map((parent: any) => ({
+            name: parent.name,
+            slug: parent.slug || parent.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+            isParent: true,
+            children: dbCategories
+              .filter((c: any) => c.parent_id === parent.id && c.is_active !== false)
+              .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name))
+              .map((c: any) => ({
+                name: c.name,
+                slug: c.slug || c.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+              })),
+          }))
+      : preset.categories.map((name: string) => ({ name, slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), isParent: false, children: [] }))
 
   // Split store name: white part + accent last word (mart·fury style)
   const words    = client.name.trim().split(' ')
@@ -318,22 +340,41 @@ export default function Header() {
                   boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
                   zIndex: 100, minWidth: '220px', borderRadius: '0 0 6px 6px',
                 }}>
-                  {categories.map((cat) => (
-                    <Link
-                      key={cat}
-                      href={`/category/${cat.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
-                      onClick={() => setDeptOpen(false)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: '10px',
-                        padding: '10px 16px', color: '#444', fontSize: '13px',
-                        textDecoration: 'none', borderBottom: '1px solid #f3f4f6',
-                      }}
-                      onMouseEnter={e => (e.currentTarget.style.color = ACCENT)}
-                      onMouseLeave={e => (e.currentTarget.style.color = '#444')}
-                    >
-                      <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#ccc', flexShrink: 0 }} />
-                      {cat}
-                    </Link>
+                  {navCategories.map((cat) => (
+                    <div key={cat.slug}>
+                      <Link
+                        href={`/category/${cat.slug}`}
+                        onClick={() => setDeptOpen(false)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '10px',
+                          padding: '10px 16px', color: '#444', fontSize: '13px',
+                          textDecoration: 'none', borderBottom: cat.children.length ? 'none' : '1px solid #f3f4f6',
+                          fontWeight: cat.isParent && cat.children.length ? 600 : 400,
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.color = ACCENT)}
+                        onMouseLeave={e => (e.currentTarget.style.color = '#444')}
+                      >
+                        <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#ccc', flexShrink: 0 }} />
+                        {cat.name}
+                      </Link>
+                      {cat.children.map(sub => (
+                        <Link
+                          key={sub.slug}
+                          href={`/category/${sub.slug}`}
+                          onClick={() => setDeptOpen(false)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '10px',
+                            padding: '8px 16px 8px 32px', color: '#666', fontSize: '12px',
+                            textDecoration: 'none', borderBottom: '1px solid #f3f4f6',
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.color = ACCENT)}
+                          onMouseLeave={e => (e.currentTarget.style.color = '#666')}
+                        >
+                          <span style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: '#ddd', flexShrink: 0 }} />
+                          {sub.name}
+                        </Link>
+                      ))}
+                    </div>
                   ))}
                 </div>
               )}
