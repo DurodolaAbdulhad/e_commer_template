@@ -49,16 +49,22 @@ export async function POST(req: NextRequest) {
 
   const supabase = getServiceClient()
 
-  // ── 3. Check if order already exists (webhook may have beaten us) ─────────
+  // ── 3. Check if order already exists (pre-saved by create route, or webhook beat us) ──
   const { data: existing } = await supabase
     .from('orders')
     .select('id, status')
     .eq('payment_reference', reference)
-    .single()
+    .maybeSingle()
 
   if (existing) {
-    // Already exists — just return it
-    return NextResponse.json({ verified: true, dbSaved: true, orderId: existing.id, alreadyExists: true })
+    // Order already in DB — update to confirmed/paid if not already
+    if (existing.status === 'pending_payment' || existing.status === 'pending') {
+      await supabase
+        .from('orders')
+        .update({ status: 'processing', payment_status: 'paid' })
+        .eq('id', existing.id)
+    }
+    return NextResponse.json({ verified: true, dbSaved: true, orderId: existing.id })
   }
 
   // ── 4. Create the order in Supabase ───────────────────────────────────────

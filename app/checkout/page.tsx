@@ -85,7 +85,8 @@ export default function CheckoutPage() {
     : 0
 
   const selfFee  = shippingSettings?.selfLogisticsFee ?? 0
-  const shipping = shipMethod === 'self'
+  // Computed for order record only — merchant absorbs shipping, NOT charged to customer
+  const merchantShipping = shipMethod === 'self'
     ? selfFee
     : getShippingCost(subtotal, shippingSettings, form.state, form.area)
 
@@ -99,7 +100,8 @@ export default function CheckoutPage() {
     return [...new Set(allAreas)].sort()
   })()
   const vatRate     = client.tax?.enabled && !client.tax?.inclusive ? (client.tax.rate ?? 0) / 100 : 0
-  const totalBeforeVat = subtotal + shipping - discount - (autoDiscount?.value ?? 0) - giftCardDiscount - wholesaleDiscount
+  // Shipping not included in customer total — merchant absorbs it
+  const totalBeforeVat = subtotal - discount - (autoDiscount?.value ?? 0) - giftCardDiscount - wholesaleDiscount
   const vatAmount   = Math.floor(totalBeforeVat * vatRate)
   const total       = totalBeforeVat + vatAmount
 
@@ -118,7 +120,7 @@ export default function CheckoutPage() {
     let disc = 0
     if (found.type === 'percent')  disc = Math.floor(subtotal * found.value / 100)
     if (found.type === 'fixed')    disc = Math.min(found.value, subtotal)
-    if (found.type === 'shipping') disc = shipping
+    if (found.type === 'shipping') disc = merchantShipping
     setDiscount(disc)
     setCouponApplied(found.code)
     toast.success(`Coupon applied — ${found.type === 'shipping' ? 'free shipping' : found.type === 'percent' ? `${found.value}% off` : `${formatPrice(disc)} off`}!`)
@@ -235,15 +237,15 @@ export default function CheckoutPage() {
           return
         }
 
-        // Save order to localStorage NOW so the confirmation page can read it
-        const orderStub = {
-          order_number: reference,
-          status: 'pending',
-          total: verifiedTotal,
+        // Build full order data — passed to server for pre-saving AND stored locally as fallback
+        const orderPayload = {
+          order_number:    reference,
+          status:          'pending_payment',
+          total:           verifiedTotal,
           subtotal,
-          shipping_cost: verifiedShipping,
-          discount: verifiedCouponDisc + (autoDiscount?.value ?? 0) + giftCardDiscount + wholesaleDiscount,
-          vat: vatAmount,
+          shipping_cost:   verifiedShipping,   // merchant absorbs — recorded but not charged
+          discount:        verifiedCouponDisc + (autoDiscount?.value ?? 0) + giftCardDiscount + wholesaleDiscount,
+          vat:             vatAmount,
           items: (items as any[]).map((i: any) => ({
             id: i.id, name: i.name, price: i.price,
             quantity: i.quantity, image: i.images?.[0] ?? null,
@@ -252,15 +254,17 @@ export default function CheckoutPage() {
             fullName: form.fullName, email: form.email, phone: form.phone,
             address: form.address, city: form.city,
             state: form.state, area: form.area || null, country: form.country,
+            notes: form.notes || null,
           },
-          payment_method: 'paystack',
+          payment_method:    'paystack',
           payment_reference: reference,
-          coupon_code: couponApplied || null,
-          delivery_method: shipMethod === 'self' ? 'self_logistics' : 'store_delivery',
+          coupon_code:       couponApplied || null,
+          delivery_method:   shipMethod === 'self' ? 'self_logistics' : 'store_delivery',
         }
-        localStorage.setItem(`order_${reference}`, JSON.stringify(orderStub))
+        // Fallback: store locally so confirmation page can render even if server save is slow
+        localStorage.setItem(`order_${reference}`, JSON.stringify(orderPayload))
 
-        // Server creates the Paystack transaction and returns authorization_url
+        // Server creates the Paystack transaction AND pre-saves the order to DB
         const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin
         const createRes = await fetch('/api/paystack/create', {
           method: 'POST',
@@ -271,6 +275,7 @@ export default function CheckoutPage() {
             reference,
             sig:         verifiedSig,
             callbackUrl: `${siteUrl}/order/${reference}`,
+            orderData:   orderPayload,   // pre-saved to DB before redirect
             metadata: {
               price_sig: verifiedSig,
               custom_fields: [
@@ -327,7 +332,7 @@ export default function CheckoutPage() {
         image: i.images?.[0] ?? null,
       })),
       subtotal,
-      shipping_cost: verifiedShipping ?? shipping,
+      shipping_cost: verifiedShipping ?? merchantShipping,
       discount: finalCouponDisc + (autoDiscount?.value ?? 0) + giftCardDiscount + wholesaleDiscount,
       vat: vatAmount,
       total: finalTotal,
@@ -451,7 +456,7 @@ export default function CheckoutPage() {
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-semibold text-gray-800">Store Delivery</p>
                         <span className="text-sm font-bold text-gray-800">
-                          {shipping === 0 ? 'FREE' : formatPrice(shipping)}
+                          FREE
                         </span>
                       </div>
                       <p className="text-xs text-gray-500 mt-0.5">{shippingSettings?.estimatedDays ?? client.shipping.estimatedDays}</p>
@@ -646,10 +651,6 @@ export default function CheckoutPage() {
                 {/* Totals */}
                 <div className="border-t border-gray-100 pt-4 space-y-2.5 mb-5">
                   <Row label="Subtotal" value={formatPrice(subtotal)} />
-                  <Row
-                    label={`Shipping${shipping === 0 ? ' (Free)' : ''}${shippingSettings?.zonesEnabled && form.state ? ` · ${form.state}${form.area ? ` › ${form.area}` : ''}` : ''}`}
-                    value={shipMethod === 'self' ? (selfFee === 0 ? 'FREE (self)' : formatPrice(selfFee)) : shipping === 0 ? 'FREE' : formatPrice(shipping)}
-                  />
                   {discount > 0 && <Row label={`Coupon (${couponApplied})`} value={`-${formatPrice(discount)}`} accent />}
                   {autoDiscount && <Row label={autoDiscount.name} value={`-${formatPrice(autoDiscount.value)}`} accent />}
                   {wholesaleDiscount > 0 && <Row label={`Wholesale (${client.wholesale?.discountPercent}% off)`} value={`-${formatPrice(wholesaleDiscount)}`} accent />}

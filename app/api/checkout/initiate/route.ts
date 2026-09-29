@@ -77,7 +77,8 @@ export async function POST(req: NextRequest) {
     }
   } catch { /* non-fatal — fall back to client config */ }
 
-  const shipping = shipMethod === 'self'
+  // Compute actual shipping for order record (merchant absorbs — not charged to customer)
+  const merchantShipping = shipMethod === 'self'
     ? Math.max(0, Number(selfLogisticsFee) || 0)
     : getShippingCost(subtotal, shippingOverrides, state, area)
 
@@ -92,18 +93,18 @@ export async function POST(req: NextRequest) {
         if (!coupon.min_order || subtotal >= coupon.min_order) {
           if (coupon.type === 'percent')  couponDiscount = Math.floor(subtotal * coupon.value / 100)
           if (coupon.type === 'fixed')    couponDiscount = Math.min(coupon.value, subtotal)
-          if (coupon.type === 'shipping') couponDiscount = shipping
+          if (coupon.type === 'shipping') couponDiscount = merchantShipping
           couponApplied = coupon.code
         }
       }
     } catch { /* coupon validation failure is non-fatal */ }
   }
 
-  // ── 3. Compute final total ───────────────────────────────────────────────
+  // ── 3. Compute final total — merchant absorbs shipping, customer pays subtotal only ──
   const vatRate       = client.tax?.enabled && !client.tax?.inclusive ? (client.tax.rate ?? 0) / 100 : 0
-  const safeGCDisc    = Math.max(0, Math.min(Number(giftCardDiscount), subtotal + shipping))
+  const safeGCDisc    = Math.max(0, Math.min(Number(giftCardDiscount), subtotal))
   const totalDiscount = couponDiscount + safeGCDisc
-  const beforeVat     = Math.max(0, subtotal + shipping - totalDiscount)
+  const beforeVat     = Math.max(0, subtotal - totalDiscount)
   const vatAmount     = Math.floor(beforeVat * vatRate)
   const total         = beforeVat + vatAmount
 
@@ -112,11 +113,11 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     subtotal,
-    shipping,
+    shipping: merchantShipping,   // stored on order record only, not charged
     couponDiscount,
     couponApplied,
     vatAmount,
-    total,
+    total,                        // does NOT include shipping
     sig,
   })
 }
