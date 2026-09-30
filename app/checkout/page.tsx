@@ -332,7 +332,7 @@ export default function CheckoutPage() {
         image: i.images?.[0] ?? null,
       })),
       subtotal,
-      shipping_cost: verifiedShipping ?? merchantShipping,
+      shipping_cost: merchantShipping,
       discount: finalCouponDisc + (autoDiscount?.value ?? 0) + giftCardDiscount + wholesaleDiscount,
       vat: vatAmount,
       total: finalTotal,

@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
         image:      item.image ?? null,
         variant:    item.variant ?? null,
       }))
-      await supabase.from('order_items').insert(orderItems).catch(() => {})
+      try { await supabase.from('order_items').insert(orderItems) } catch (_) {}
     }
 
     return NextResponse.json({ verified: true, dbSaved: true, orderId: inserted?.id })
