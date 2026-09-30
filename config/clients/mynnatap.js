@@ -6,6 +6,7 @@ export const client = {
   logoHeight: 56,
   headerBg: "#000000",
   favicon: "/assets/favicon.ico",
+  shopByLabel: "Shop By Category",
 
   colors: {
     primary: "#222222",

@@ -330,7 +330,7 @@ export default function Header() {
                 }}
               >
                 <Menu size={15} />
-                Shop By Department
+                {(client as any).shopByLabel ?? 'Shop By Department'}
                 <ChevronDown size={12} style={{ transition: 'transform 0.2s', transform: deptOpen ? 'rotate(180deg)' : 'none' }} />
               </button>
 
