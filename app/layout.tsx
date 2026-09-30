@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Poppins, Bricolage_Grotesque } from "next/font/google";
 import Script from "next/script";
 import { Toaster } from "react-hot-toast";
 import { CartProvider } from "@/hooks/useCart";
@@ -15,17 +14,6 @@ import AbandonedCartTracker from "@/components/ui/AbandonedCartTracker";
 import PageViewTracker from "@/components/ui/PageViewTracker";
 import "./globals.css";
 
-const poppins = Poppins({
-  variable: "--font-poppins",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
-
-const bricolage = Bricolage_Grotesque({
-  variable: "--font-bricolage",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-});
 
 async function getSiteMeta() {
   try {
@@ -79,8 +67,11 @@ export default async function RootLayout({
   const clarityId  = meta['clarity_id']   || ''
 
   return (
-    <html lang="en" data-scroll-behavior="smooth" className={`${poppins.variable} ${bricolage.variable}`}>
+    <html lang="en" data-scroll-behavior="smooth">
       <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
         <style>{`
           :root {
             --brand-primary: ${brandPrimary};
@@ -89,8 +80,8 @@ export default async function RootLayout({
             --brand-background: ${colors.background};
             --brand-text: ${colors.text};
             --brand-text-light: ${colors.textLight};
-            --font-heading: var(--font-bricolage), system-ui, sans-serif;
-            --font-body: var(--font-poppins), system-ui, sans-serif;
+            --font-heading: 'Bricolage Grotesque', system-ui, sans-serif;
+            --font-body: 'Poppins', system-ui, sans-serif;
           }
         `}</style>
         {/* Flutterwave SDK */}
