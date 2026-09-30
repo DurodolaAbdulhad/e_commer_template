@@ -5,6 +5,7 @@ export const client = {
   logo: "",
   logoHeight: 44,
   favicon: "/assets/favicon.ico",
+  shopByLabel: "Shop By Department",
 
   colors: {
     primary: "#2D1B3D",        // deep plum — bridal elegance
