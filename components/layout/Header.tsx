@@ -486,13 +486,13 @@ export default function Header() {
           <p style={{ padding: '12px 20px 6px', fontSize: '10px', fontWeight: 700, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
             Categories
           </p>
-          {categories.map(cat => (
-            <Link key={cat}
-              href={`/shop?category=${cat.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+          {navCategories.map(cat => (
+            <Link key={cat.slug}
+              href={`/shop?category=${cat.slug}`}
               onClick={() => setMenuOpen(false)}
               style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 20px', color: 'rgba(255,255,255,0.65)', fontSize: '13px', textDecoration: 'none', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
               <span style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: ACCENT, flexShrink: 0 }} />
-              {cat}
+              {cat.name}
             </Link>
           ))}
         </div>
