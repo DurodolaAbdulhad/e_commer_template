@@ -11,7 +11,7 @@ import { client } from '@/config/client'
 import { industries } from '@/config/industries'
 import CartDrawer from '@/components/cart/CartDrawer'
 import SearchDropdown from '@/components/search/SearchDropdown'
-import { getStoreSetting, getCategories } from '@/lib/admin-db'
+import { getStoreSetting } from '@/lib/admin-db'
 
 const H_BG     = (client as any).headerBg ?? '#1a2638'
 const NAV_BG   = (client as any).headerBg ?? '#1e3045'
@@ -59,9 +59,10 @@ export default function Header() {
     getStoreSetting('logo_text_weight').then((v: string | null) => { if (v) setLogoTextWeight(v) }).catch(() => {})
     getStoreSetting('logo_accent_word').then((v: string | null) => { if (v) setLogoAccentWord(v) }).catch(() => {})
     getStoreSetting('logo_accent_color').then((v: string | null)=> { if (v) setLogoAccentColor(v) }).catch(() => {})
-    getCategories().then((cats: any[]) => {
-      if (cats.length) setDbCategories(cats)
-    }).catch(() => {})
+    fetch('/api/categories')
+      .then(r => r.json())
+      .then(({ categories }) => { if (categories?.length) setDbCategories(categories) })
+      .catch(() => {})
   }, [])
 
   // Close dropdown on outside click
@@ -338,29 +339,30 @@ export default function Header() {
                   position: 'absolute', left: 0, top: '100%',
                   backgroundColor: '#fff', border: '1px solid #e5e7eb',
                   boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                  zIndex: 100, minWidth: '220px', borderRadius: '0 0 6px 6px',
+                  zIndex: 100, minWidth: '240px', borderRadius: '0 0 6px 6px',
+                  maxHeight: '70vh', overflowY: 'auto',
                 }}>
                   {navCategories.map((cat) => (
                     <div key={cat.slug}>
                       <Link
-                        href={`/category/${cat.slug}`}
+                        href={`/shop?category=${cat.slug}`}
                         onClick={() => setDeptOpen(false)}
                         style={{
                           display: 'flex', alignItems: 'center', gap: '10px',
                           padding: '10px 16px', color: '#444', fontSize: '13px',
-                          textDecoration: 'none', borderBottom: cat.children.length ? 'none' : '1px solid #f3f4f6',
-                          fontWeight: cat.isParent && cat.children.length ? 600 : 400,
+                          textDecoration: 'none', borderBottom: '1px solid #f3f4f6',
+                          fontWeight: cat.children.length ? 600 : 400,
                         }}
                         onMouseEnter={e => (e.currentTarget.style.color = ACCENT)}
                         onMouseLeave={e => (e.currentTarget.style.color = '#444')}
                       >
-                        <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#ccc', flexShrink: 0 }} />
+                        <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: cat.children.length ? ACCENT : '#ccc', flexShrink: 0 }} />
                         {cat.name}
                       </Link>
                       {cat.children.map(sub => (
                         <Link
                           key={sub.slug}
-                          href={`/category/${sub.slug}`}
+                          href={`/shop?category=${sub.slug}`}
                           onClick={() => setDeptOpen(false)}
                           style={{
                             display: 'flex', alignItems: 'center', gap: '10px',
