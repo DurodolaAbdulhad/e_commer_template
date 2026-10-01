@@ -5,8 +5,7 @@ import Link from 'next/link'
 import { X, ShoppingBag } from 'lucide-react'
 import { useCart } from '@/hooks/useCart'
 import CartItem from './CartItem'
-import { formatPrice, getShippingCost } from '@/lib/utils'
-import { client } from '@/config/client'
+import { formatPrice } from '@/lib/utils'
 
 interface Props {
   open: boolean
@@ -15,7 +14,6 @@ interface Props {
 
 export default function CartDrawer({ open, onClose }: Props) {
   const { items, subtotal, itemCount } = useCart()
-  const shipping = getShippingCost(subtotal)
 
   // Close on ESC
   useEffect(() => {
@@ -81,22 +79,12 @@ export default function CartDrawer({ open, onClose }: Props) {
         {/* Footer */}
         {items.length > 0 && (
           <div className="border-t border-gray-100 px-4 py-4 space-y-3">
-            {/* Shipping */}
-            <div className="flex justify-between text-sm text-gray-500">
-              <span>Shipping</span>
-              <span>{shipping === 0 ? <span className="text-green-600 font-medium">Free</span> : formatPrice(shipping)}</span>
+            {/* Subtotal */}
+            <div className="flex justify-between font-bold text-base">
+              <span>Subtotal</span>
+              <span style={{ color: 'var(--brand-secondary)' }}>{formatPrice(subtotal)}</span>
             </div>
-            {shipping > 0 && (
-              <p className="text-xs text-gray-400">
-                Add {formatPrice(client.shipping.freeAbove - subtotal)} more for free shipping
-              </p>
-            )}
-
-            {/* Total */}
-            <div className="flex justify-between font-bold text-base border-t border-gray-100 pt-3">
-              <span>Total</span>
-              <span style={{ color: 'var(--brand-secondary)' }}>{formatPrice(subtotal + shipping)}</span>
-            </div>
+            <p className="text-xs text-gray-400">Shipping calculated at checkout</p>
 
             {/* CTAs */}
             <Link
@@ -107,13 +95,12 @@ export default function CartDrawer({ open, onClose }: Props) {
             >
               Proceed to Checkout
             </Link>
-            <Link
-              href="/cart"
+            <button
               onClick={onClose}
               className="block w-full text-center py-2.5 rounded font-semibold text-sm border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
             >
-              View Full Cart
-            </Link>
+              Continue Shopping
+            </button>
           </div>
         )}
       </div>

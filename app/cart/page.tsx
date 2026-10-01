@@ -7,16 +7,10 @@ import PageBox from '@/components/ui/PageBox'
 import CartItem from '@/components/cart/CartItem'
 import Link from 'next/link'
 import { ShoppingBag, ArrowLeft } from 'lucide-react'
-import { formatPrice, getShippingCost, loadShippingSettings } from '@/lib/utils'
-import { client } from '@/config/client'
-import { useState, useEffect } from 'react'
+import { formatPrice } from '@/lib/utils'
 
 export default function CartPage() {
   const { items, subtotal, itemCount, loaded: cartLoaded } = useCart()
-  const [shippingSettings, setShippingSettings] = useState<any>(null)
-  useEffect(() => { loadShippingSettings().then(s => setShippingSettings(s)).catch(() => {}) }, [])
-  const shipping = getShippingCost(subtotal, shippingSettings)
-  const total = subtotal + shipping
 
   return (
     <>
@@ -96,23 +90,12 @@ export default function CartPage() {
 
                   <div className="flex justify-between text-gray-500">
                     <span>Shipping</span>
-                    <span className="font-medium">
-                      {shipping === 0
-                        ? <span style={{ color: 'var(--brand-secondary)' }}>Free</span>
-                        : formatPrice(shipping)
-                      }
-                    </span>
+                    <span className="font-medium text-gray-500 text-xs">Calculated at checkout</span>
                   </div>
 
-                  {shipping > 0 && (shippingSettings?.freeAbove ?? client.shipping.freeAbove) > 0 && (
-                    <p className="text-xs text-gray-400 bg-gray-50 rounded p-2">
-                      Add {formatPrice((shippingSettings?.freeAbove ?? client.shipping.freeAbove) - subtotal)} more to get free shipping
-                    </p>
-                  )}
-
                   <div className="border-t border-gray-100 pt-3 flex justify-between font-bold text-base">
-                    <span>Total</span>
-                    <span style={{ color: 'var(--brand-secondary)' }}>{formatPrice(total)}</span>
+                    <span>Subtotal</span>
+                    <span style={{ color: 'var(--brand-secondary)' }}>{formatPrice(subtotal)}</span>
                   </div>
                 </div>
 
