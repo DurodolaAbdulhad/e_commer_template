@@ -63,8 +63,7 @@ export default function AdminOrdersPage() {
   const filtered = orders.filter(o =>
     !search ||
     (o.order_number ?? o.payment_reference ?? '').toLowerCase().includes(search.toLowerCase()) ||
-    (o.customer_email ?? o.contact?.email ?? '').toLowerCase().includes(search.toLowerCase()) ||
-    (o.customer_name ?? '').toLowerCase().includes(search.toLowerCase())
+    (o.email ?? o.customer_email ?? o.contact?.email ?? '').toLowerCase().includes(search.toLowerCase())
   )
 
   return (
@@ -136,7 +135,7 @@ export default function AdminOrdersPage() {
                   <p className="text-sm font-semibold text-gray-700">{ref}</p>
                   <p className="text-xs text-gray-400 mt-0.5">{date}</p>
                 </div>
-                <p className="text-xs text-gray-600 truncate">{order.customer_email || order.contact?.email || 'Guest'}</p>
+                <p className="text-xs text-gray-600 truncate">{order.email || order.customer_email || order.contact?.email || 'Guest'}</p>
                 <p className="text-xs text-gray-500">{order.items?.length ?? 0} item{(order.items?.length ?? 0) !== 1 ? 's' : ''}</p>
                 <p className="text-sm font-bold" style={{ color: ACCENT }}>{formatPrice(order.total ?? 0)}</p>
                 <select

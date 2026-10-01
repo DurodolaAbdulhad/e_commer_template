@@ -56,9 +56,9 @@ export default function AdminOrderDetailPage() {
             <ArrowLeft size={14} className="text-gray-500" />
           </button>
           <div>
-            <h2 className="text-sm font-bold text-gray-800">{order.reference || order.id}</h2>
+            <h2 className="text-sm font-bold text-gray-800">{order.order_number || order.payment_reference || order.id}</h2>
             <p className="text-xs text-gray-400">
-              {order.createdAt ? new Date(order.createdAt).toLocaleString('en-NG') : ''}
+              {order.created_at ? new Date(order.created_at).toLocaleString('en-NG') : ''}
             </p>
           </div>
         </div>
@@ -89,8 +89,8 @@ export default function AdminOrderDetailPage() {
             {(order.items ?? []).map((item: any, i: number) => (
               <div key={i} className="flex items-center gap-4 px-5 py-4 border-b border-gray-50 last:border-0">
                 <div className="w-14 h-14 bg-gray-50 rounded border border-gray-100 overflow-hidden relative shrink-0">
-                  {item.images?.[0]
-                    ? <Image src={item.images[0]} alt={item.name} fill className="object-cover" sizes="56px" />
+                  {(item.image || item.images?.[0])
+                    ? <Image src={item.image || item.images[0]} alt={item.name} fill className="object-cover" sizes="56px" />
                     : <div className="w-full h-full flex items-center justify-center text-base font-bold text-gray-300">{item.name?.charAt(0)}</div>
                   }
                 </div>
@@ -127,7 +127,7 @@ export default function AdminOrderDetailPage() {
                 <span style={{ color: ACCENT }}>{formatPrice(order.total ?? 0)}</span>
               </div>
               <p className="text-xs text-gray-400 pt-1">
-                Method: {order.paymentMethod || 'Paystack'} · Ref: {order.reference}
+                Method: Paystack · Ref: {order.payment_reference || order.order_number}
               </p>
             </div>
           </div>
@@ -135,20 +135,24 @@ export default function AdminOrderDetailPage() {
 
         {/* Customer info */}
         <div className="space-y-4">
-          {order.contact && (
+          {(order.email || order.phone) && (
             <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
               <div className="px-4 py-3.5 border-b border-gray-100 bg-gray-50">
                 <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wide">Customer</h3>
               </div>
               <div className="p-4 space-y-3">
-                <div className="flex items-center gap-2.5">
-                  <Mail size={13} className="text-gray-400 shrink-0" />
-                  <span className="text-xs text-gray-600">{order.contact.email}</span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <Phone size={13} className="text-gray-400 shrink-0" />
-                  <span className="text-xs text-gray-600">{order.contact.phone}</span>
-                </div>
+                {order.email && (
+                  <div className="flex items-center gap-2.5">
+                    <Mail size={13} className="text-gray-400 shrink-0" />
+                    <span className="text-xs text-gray-600">{order.email}</span>
+                  </div>
+                )}
+                {order.phone && (
+                  <div className="flex items-center gap-2.5">
+                    <Phone size={13} className="text-gray-400 shrink-0" />
+                    <span className="text-xs text-gray-600">{order.phone}</span>
+                  </div>
+                )}
               </div>
             </div>
           )}
