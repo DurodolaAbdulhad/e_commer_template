@@ -25,9 +25,10 @@ export default function ShopToolbar({ count, sort, show, view, title }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  function update(key: string, value: string) {
+  function update(key: string, value: string, resetPage = false) {
     const params = new URLSearchParams(searchParams.toString())
     if (value) params.set(key, value); else params.delete(key)
+    if (resetPage) params.delete('page')
     router.push(`/shop?${params}`)
   }
 
@@ -58,12 +59,12 @@ export default function ShopToolbar({ count, sort, show, view, title }: Props) {
           Filters
         </button>
         {/* Sort */}
-        <select value={sort} onChange={e => update('sort', e.target.value)} className={selectCls}>
+        <select value={sort} onChange={e => update('sort', e.target.value, true)} className={selectCls}>
           {sortOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
 
         {/* Show */}
-        <select value={show || '12'} onChange={e => update('show', e.target.value)} className={selectCls}>
+        <select value={show || '12'} onChange={e => update('show', e.target.value, true)} className={selectCls}>
           {showOptions.map(n => <option key={n} value={String(n)}>Show {n}</option>)}
         </select>
 

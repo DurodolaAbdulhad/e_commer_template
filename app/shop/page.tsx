@@ -6,6 +6,7 @@ import ProductCard from '@/components/product/ProductCard'
 import ShopSidebar from '@/components/shop/ShopSidebar'
 import ShopToolbar from '@/components/shop/ShopToolbar'
 import MobileFilterDrawer from '@/components/shop/MobileFilterDrawer'
+import ShopPagination from '@/components/shop/ShopPagination'
 import WhatsAppButton from '@/components/ui/WhatsAppButton'
 import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
@@ -26,14 +27,20 @@ interface SearchParams {
   q?: string
   show?: string
   view?: string
+  page?: string
 }
 
 async function getProducts(params: SearchParams) {
   try {
     const supabase = await createClient()
+    const limit   = Number(params.show ?? 12)
+    const page    = Math.max(1, Number(params.page ?? 1))
+    const from    = (page - 1) * limit
+    const to      = from + limit - 1
+
     let query = supabase
       .from('products')
-      .select('*, categories(name,slug)')
+      .select('*, categories(name,slug)', { count: 'exact' })
       .eq('is_active', true)
 
     if (params.category) {
@@ -56,10 +63,9 @@ async function getProducts(params: SearchParams) {
       default:           query = query.order('is_featured', { ascending: false }).order('created_at', { ascending: false })
     }
 
-    const limit = Number(params.show ?? 12)
-    const { data } = await query.limit(limit)
-    return data ?? []
-  } catch { return [] }
+    const { data, count } = await query.range(from, to)
+    return { data: data ?? [], total: count ?? 0 }
+  } catch { return { data: [], total: 0 } }
 }
 
 async function getCategories() {
@@ -73,8 +79,11 @@ async function getCategories() {
 
 export default async function ShopPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params   = await searchParams
-  const [products, categories] = await Promise.all([getProducts(params), getCategories()])
+  const [{ data: products, total }, categories] = await Promise.all([getProducts(params), getCategories()])
   const view     = params.view ?? 'grid'
+  const limit    = Number(params.show ?? 12)
+  const page     = Math.max(1, Number(params.page ?? 1))
+  const totalPages = Math.ceil(total / limit)
 
   const pageTitle =
     params.featured === 'true' ? 'Best Sellers'
@@ -136,7 +145,7 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
             {/* Main */}
             <div className="flex-1 min-w-0">
               <ShopToolbar
-                count={products.length}
+                count={total}
                 sort={params.sort ?? ''}
                 show={params.show ?? '12'}
                 view={view}
@@ -166,6 +175,14 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
                     <ProductCard key={p.id} product={p} />
                   ))}
                 </div>
+              )}
+
+              {totalPages > 1 && (
+                <ShopPagination
+                  currentPage={page}
+                  totalPages={totalPages}
+                  searchParams={params}
+                />
               )}
             </div>
           </div>
