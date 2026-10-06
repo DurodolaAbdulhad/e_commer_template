@@ -12,6 +12,7 @@ import CompareBar from "@/components/compare/CompareBar";
 import NewsletterPopup from "@/components/ui/NewsletterPopup";
 import AbandonedCartTracker from "@/components/ui/AbandonedCartTracker";
 import PageViewTracker from "@/components/ui/PageViewTracker";
+import ServiceWorkerRegistration from "@/components/ui/ServiceWorkerRegistration";
 import "./globals.css";
 
 
@@ -84,6 +85,12 @@ export default async function RootLayout({
             --font-body: 'Poppins', system-ui, sans-serif;
           }
         `}</style>
+        {/* PWA theme color */}
+        <meta name="theme-color" content={brandPrimary} />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content={client.name.split(' ')[0]} />
         {/* Flutterwave SDK */}
         {(client as any).paymentGateway === 'flutterwave' && (
           <Script src="https://checkout.flutterwave.com/v3.js" strategy="afterInteractive" />
@@ -136,6 +143,7 @@ export default async function RootLayout({
             <NewsletterPopup />
             <AbandonedCartTracker />
             <PageViewTracker />
+            <ServiceWorkerRegistration />
             <Toaster
               position="top-right"
               toastOptions={{
