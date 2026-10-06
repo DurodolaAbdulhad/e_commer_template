@@ -8,7 +8,7 @@ import PageBox from '@/components/ui/PageBox'
 import { formatPrice } from '@/lib/utils'
 import { client } from '@/config/client'
 import Link from 'next/link'
-import { CheckCircle, Package, MapPin, Phone, Mail, ChevronRight, Loader2, AlertCircle } from 'lucide-react'
+import { CheckCircle, Package, MapPin, Phone, Mail, ChevronRight, Loader2, AlertCircle, UserCheck } from 'lucide-react'
 
 const ACCENT = '#e84c3d'
 const GREEN  = '#4CAF50'
