@@ -284,6 +284,10 @@ export default function OrderConfirmationPage() {
                     style={{ backgroundColor: ACCENT }}>
                     Continue Shopping
                   </Link>
+                  <Link href="/track"
+                    className="block w-full py-3 text-center text-gray-600 text-sm font-semibold rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
+                    Track This Order
+                  </Link>
                   <Link href="/account/orders"
                     className="block w-full py-3 text-center text-gray-600 text-sm font-semibold rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
                     View My Orders

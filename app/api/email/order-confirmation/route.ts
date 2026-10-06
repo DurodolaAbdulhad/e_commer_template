@@ -132,9 +132,15 @@ export async function POST(req: NextRequest) {
             <!-- What's next -->
             <div style="margin-top:24px;">
               <h3 style="margin:0 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;color:#888;font-weight:600;">What happens next?</h3>
-              <p style="margin:0;font-size:14px;color:#555;line-height:1.7;">
-                We'll process your order and send you an update when it ships. If you have any questions, reply to this email or WhatsApp us.
+              <p style="margin:0 0 14px;font-size:14px;color:#555;line-height:1.7;">
+                We'll process your order and send you an update when it ships. You can track your order at any time using the button below.
               </p>
+              <div style="text-align:center;">
+                <a href="${esc(process.env.NEXT_PUBLIC_SITE_URL || '')}/track"
+                  style="display:inline-block;background:#e84c3d;color:#fff;font-weight:700;font-size:14px;padding:12px 28px;border-radius:8px;text-decoration:none;">
+                  Track My Order
+                </a>
+              </div>
             </div>
 
           </td>
