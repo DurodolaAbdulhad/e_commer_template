@@ -237,8 +237,9 @@ export default function ProductForm({ product }: { product?: any }) {
   const [flashDealEnd, setFlashDealEnd] = useState(
     product?.flash_deal_end ? new Date(product.flash_deal_end).toISOString().slice(0, 16) : ''
   )
-  const [productType, setProductType] = useState<'physical' | 'digital'>(product?.product_type ?? 'physical')
-  const [fileUrl,     setFileUrl]     = useState(product?.file_url ?? '')
+  const [productType,   setProductType]   = useState<'physical' | 'digital'>(product?.product_type ?? 'physical')
+  const [fileUrl,       setFileUrl]       = useState(product?.file_url ?? '')
+  const [returnPolicy,  setReturnPolicy]  = useState(product?.return_policy ?? '')
 
   const loadCategories = useCallback(async () => {
     const cats = await getCategories()
@@ -282,6 +283,7 @@ export default function ProductForm({ product }: { product?: any }) {
         flash_deal_end: isFlashDeal && flashDealEnd ? new Date(flashDealEnd).toISOString() : null,
         product_type: productType,
         file_url: productType === 'digital' && fileUrl ? fileUrl : null,
+        return_policy: returnPolicy.trim() || null,
       }
       if (isEdit) {
         await updateProduct(product.id, payload)
@@ -336,6 +338,13 @@ export default function ProductForm({ product }: { product?: any }) {
                 <textarea value={description} onChange={e => setDescription(e.target.value)}
                   rows={4} placeholder="Describe your product…"
                   className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400 resize-none" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1.5">Return Policy</label>
+                <textarea value={returnPolicy} onChange={e => setReturnPolicy(e.target.value)}
+                  rows={2} placeholder="e.g. 7-day returns accepted. Item must be unused and in original packaging."
+                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400 resize-none" />
+                <p className="text-[10px] text-gray-400 mt-1">Leave blank to use the store default return policy shown on all products.</p>
               </div>
             </div>
           </div>

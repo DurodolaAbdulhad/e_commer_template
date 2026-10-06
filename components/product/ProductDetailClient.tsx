@@ -51,12 +51,17 @@ function ClickStars({ value, onChange }: { value: number; onChange: (n: number) 
   )
 }
 
-const trustBadges = [
-  { icon: <Truck size={20} />,      title: 'Free Delivery',  sub: `Over ${client.currencySymbol}${client.shipping.freeAbove.toLocaleString()}` },
-  { icon: <RotateCcw size={20} />,  title: '90 Days Return', sub: 'If goods have problems' },
-  { icon: <Shield size={20} />,     title: 'Secure Payment', sub: '100% secure payment' },
-  { icon: <Headphones size={20} />, title: '24/7 Support',   sub: 'Dedicated support' },
-]
+function getTrustBadges(returnPolicy?: string) {
+  const returnDays = returnPolicy?.match(/^(\d+)/)?.[1]
+  const returnLabel = returnDays ? `${returnDays}-Day Returns` : 'Easy Returns'
+  const returnSub   = returnPolicy ? returnPolicy.slice(0, 60) : 'If goods have problems'
+  return [
+    { icon: <Truck size={20} />,      title: 'Free Delivery',  sub: `Over ${client.currencySymbol}${client.shipping.freeAbove.toLocaleString()}` },
+    { icon: <RotateCcw size={20} />,  title: returnLabel,      sub: returnSub },
+    { icon: <Shield size={20} />,     title: 'Secure Payment', sub: '100% secure payment' },
+    { icon: <Headphones size={20} />, title: '24/7 Support',   sub: 'Dedicated support' },
+  ]
+}
 
 // ── Review helpers ─────────────────────────────────────────────────────────
 
@@ -105,7 +110,8 @@ export default function ProductDetailClient({
   const [qty,                    setQty]                    = useState(1)
   const [selectedVariant,        setSelectedVariant]        = useState<Record<string, string>>({})
   const [selectedDigitalOptions, setSelectedDigitalOptions] = useState<string[]>([])
-  const [activeTab,              setActiveTab]              = useState<'details' | 'info' | 'reviews'>('details')
+  const [activeTab,              setActiveTab]              = useState<'details' | 'info' | 'returns' | 'reviews'>('details')
+  const trustBadges = getTrustBadges(product.return_policy)
 
   // Sticky bar — show when the buy buttons scroll above the viewport
   const buyRef    = useRef<HTMLDivElement>(null)
@@ -452,6 +458,7 @@ export default function ProductDetailClient({
           {([
             { key: 'details', label: 'Details' },
             { key: 'info',    label: 'More Info' },
+            { key: 'returns', label: 'Returns' },
             { key: 'reviews', label: `Reviews (${totalCount})` },
           ] as const).map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
@@ -500,6 +507,23 @@ export default function ProductDetailClient({
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* RETURNS */}
+          {activeTab === 'returns' && (
+            <div className="max-w-2xl space-y-4">
+              <p className="text-sm text-gray-600 leading-relaxed">
+                {product.return_policy || `We accept returns within ${client.shipping?.returnDays ?? 7} days of delivery. Items must be unused and in their original packaging. Contact us to initiate a return.`}
+              </p>
+              <Link
+                href="/returns"
+                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-lg hover:opacity-90 transition-opacity"
+                style={{ backgroundColor: ACCENT }}
+              >
+                <RotateCcw size={14} />
+                Request a Return
+              </Link>
             </div>
           )}
 
