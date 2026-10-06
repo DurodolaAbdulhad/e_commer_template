@@ -34,6 +34,15 @@ export const client = {
     estimatedDays: "3–7 business days",
   },
 
+  pickupPoints: [
+    {
+      id:      'lagos',
+      name:    'Lagos Showroom',
+      address: 'Lagos, Nigeria',
+      hours:   'Mon – Sat: 10 am – 7 pm',
+    },
+  ],
+
   tax: {
     enabled: false,
     rate: 7.5,

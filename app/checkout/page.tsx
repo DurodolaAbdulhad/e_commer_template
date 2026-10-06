@@ -59,8 +59,9 @@ export default function CheckoutPage() {
   const [loyaltyApplied,   setLoyaltyApplied]   = useState(false)
   const [loading,          setLoading]          = useState(false)
   const [mounted,          setMounted]          = useState(false)
-  const [shippingSettings, setShippingSettings] = useState<any>(null)
-  const [shipMethod,       setShipMethod]       = useState<'store' | 'self'>('store')
+  const [shippingSettings,    setShippingSettings]    = useState<any>(null)
+  const [shipMethod,          setShipMethod]          = useState<'store' | 'self' | 'pickup'>('store')
+  const [selectedPickupPoint, setSelectedPickupPoint] = useState<string>((client as any).pickupPoints?.[0]?.id ?? '')
   useEffect(() => {
     setMounted(true)
     loadShippingSettings().then(s => setShippingSettings(s)).catch(() => {})
@@ -89,10 +90,14 @@ export default function CheckoutPage() {
     : 0
 
   const selfFee  = shippingSettings?.selfLogisticsFee ?? 0
+  const pickupPoints: Array<{ id: string; name: string; address: string; hours: string }> =
+    (client as any).pickupPoints ?? []
   // Computed for order record only — merchant absorbs shipping, NOT charged to customer
   const merchantShipping = shipMethod === 'self'
     ? selfFee
-    : getShippingCost(subtotal, shippingSettings, form.state, form.area)
+    : shipMethod === 'pickup'
+      ? 0
+      : getShippingCost(subtotal, shippingSettings, form.state, form.area)
 
   // Derive selectable sub-areas for the chosen state (from zones that have per-area rates)
   const areaOptions: string[] = (() => {
@@ -173,7 +178,9 @@ export default function CheckoutPage() {
   }
 
   function validate() {
-    const required: (keyof FormData)[] = ['fullName', 'email', 'phone', 'address', 'city', 'state']
+    const required: (keyof FormData)[] = shipMethod === 'pickup'
+      ? ['fullName', 'email', 'phone']
+      : ['fullName', 'email', 'phone', 'address', 'city', 'state']
     for (const key of required) {
       if (!form[key].trim()) {
         toast.error(`Please fill in your ${key.replace(/([A-Z])/g, ' $1').toLowerCase()}`)
@@ -182,6 +189,10 @@ export default function CheckoutPage() {
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
       toast.error('Please enter a valid email address')
+      return false
+    }
+    if (shipMethod === 'pickup' && !selectedPickupPoint) {
+      toast.error('Please select a pickup location')
       return false
     }
     return true
@@ -281,12 +292,18 @@ export default function CheckoutPage() {
             id: i.id, name: i.name, price: i.price,
             quantity: i.quantity, image: i.images?.[0] ?? null,
           })),
-          address: {
-            fullName: form.fullName, email: form.email, phone: form.phone,
-            address: form.address, city: form.city,
-            state: form.state, area: form.area || null, country: form.country,
-            notes: form.notes || null,
-          },
+          address: shipMethod === 'pickup'
+            ? {
+                fullName: form.fullName, email: form.email, phone: form.phone,
+                address: null, city: null, state: null, area: null, country: 'Nigeria',
+                notes: form.notes || null,
+              }
+            : {
+                fullName: form.fullName, email: form.email, phone: form.phone,
+                address: form.address, city: form.city,
+                state: form.state, area: form.area || null, country: form.country,
+                notes: form.notes || null,
+              },
           payment_method:    'paystack',
           payment_reference: reference,
           coupon_code:       couponApplied || null,
@@ -294,7 +311,11 @@ export default function CheckoutPage() {
           wallet_email:      walletDiscount > 0 ? form.email : null,
           loyalty_points_used: loyaltyDiscount > 0 ? Math.ceil(loyaltyDiscount / nairaPerPoint) : null,
           loyalty_email:     loyaltyDiscount > 0 ? form.email : null,
-          delivery_method:   shipMethod === 'self' ? 'self_logistics' : 'store_delivery',
+          delivery_method:   shipMethod === 'self' ? 'self_logistics' : shipMethod === 'pickup' ? 'pickup' : 'store_delivery',
+          pickup_point_id:   shipMethod === 'pickup' ? selectedPickupPoint : null,
+          pickup_point_name: shipMethod === 'pickup'
+            ? pickupPoints.find(p => p.id === selectedPickupPoint)?.name ?? null
+            : null,
         }
         // Fallback: store locally so confirmation page can render even if server save is slow
         localStorage.setItem(`order_${reference}`, JSON.stringify(orderPayload))
@@ -372,22 +393,31 @@ export default function CheckoutPage() {
       vat: vatAmount,
       total: finalTotal,
       price_sig: verifiedSig ?? null,
-      address: {
-        fullName: form.fullName,
-        email: form.email,
-        phone: form.phone,
-        address: form.address,
-        city: form.city,
-        state: form.state,
-        area: form.area || null,
-        country: form.country,
-        notes: form.notes,
-      },
+      address: shipMethod === 'pickup'
+        ? {
+            fullName: form.fullName, email: form.email, phone: form.phone,
+            address: null, city: null, state: null, area: null, country: 'Nigeria',
+            notes: form.notes || null,
+          }
+        : {
+            fullName: form.fullName,
+            email: form.email,
+            phone: form.phone,
+            address: form.address,
+            city: form.city,
+            state: form.state,
+            area: form.area || null,
+            country: form.country,
+            notes: form.notes,
+          },
       payment_method: client.paymentGateway ?? 'paystack',
       payment_reference: paystackRef,
       coupon_code: couponApplied || null,
       gift_card_code: giftCardApplied || null,
       auto_discount: autoDiscount?.name || null,
+      delivery_method:   shipMethod === 'self' ? 'self_logistics' : shipMethod === 'pickup' ? 'pickup' : 'store_delivery',
+      pickup_point_id:   shipMethod === 'pickup' ? selectedPickupPoint : null,
+      pickup_point_name: shipMethod === 'pickup' ? pickupPoints.find(p => p.id === selectedPickupPoint)?.name ?? null : null,
     }
 
     // Fix 11: store minimal data in localStorage — full order saved to Supabase only
@@ -478,8 +508,8 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {/* Delivery method — shown when self-logistics is enabled in admin */}
-              {shippingSettings?.selfLogisticsEnabled && (
+              {/* Delivery method — shown when self-logistics OR pickup points are configured */}
+              {(shippingSettings?.selfLogisticsEnabled || pickupPoints.length > 0) && (
                 <div className="bg-white border border-gray-100 rounded-xl p-5 space-y-3">
                   <h2 className="font-bold text-gray-800 text-sm uppercase tracking-wide">Delivery Method</h2>
 
@@ -489,32 +519,71 @@ export default function CheckoutPage() {
                       onChange={() => setShipMethod('store')} className="mt-0.5 accent-red-500" />
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
-                        <p className="text-sm font-semibold text-gray-800">Store Delivery</p>
-                        <span className="text-sm font-bold text-gray-800">
-                          FREE
-                        </span>
+                        <p className="text-sm font-semibold text-gray-800">Home Delivery</p>
+                        <span className="text-sm font-bold text-gray-800">FREE</span>
                       </div>
                       <p className="text-xs text-gray-500 mt-0.5">{shippingSettings?.estimatedDays ?? client.shipping.estimatedDays}</p>
                     </div>
                   </label>
 
-                  {/* Self-logistics option */}
-                  <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${shipMethod === 'self' ? 'border-red-400 bg-red-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                    <input type="radio" name="shipMethod" value="self" checked={shipMethod === 'self'}
-                      onChange={() => setShipMethod('self')} className="mt-0.5 accent-red-500" />
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-semibold text-gray-800">Arrange My Own Delivery</p>
-                        <span className="text-sm font-bold text-gray-800">
-                          {selfFee === 0 ? 'FREE' : formatPrice(selfFee)}
-                        </span>
+                  {/* Pickup option */}
+                  {pickupPoints.length > 0 && (
+                    <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${shipMethod === 'pickup' ? 'border-red-400 bg-red-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                      <input type="radio" name="shipMethod" value="pickup" checked={shipMethod === 'pickup'}
+                        onChange={() => setShipMethod('pickup')} className="mt-0.5 accent-red-500" />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-semibold text-gray-800">Store Pickup</p>
+                          <span className="text-sm font-bold text-green-600">FREE</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-0.5">Collect your order in-store — ready in 1–2 hours</p>
                       </div>
-                      <p className="text-xs text-gray-500 mt-0.5">Book directly with a logistics provider of your choice</p>
+                    </label>
+                  )}
+
+                  {/* Pickup point selector */}
+                  {shipMethod === 'pickup' && pickupPoints.length > 0 && (
+                    <div className="space-y-2 pt-1">
+                      <p className="text-xs font-semibold text-gray-600">Choose a pickup location</p>
+                      {pickupPoints.map(pt => (
+                        <label key={pt.id} className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-colors ${selectedPickupPoint === pt.id ? 'border-red-400 bg-red-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                          <input
+                            type="radio"
+                            name="pickupPoint"
+                            value={pt.id}
+                            checked={selectedPickupPoint === pt.id}
+                            onChange={() => setSelectedPickupPoint(pt.id)}
+                            className="mt-0.5 accent-red-500 shrink-0"
+                          />
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800">{pt.name}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">{pt.address}</p>
+                            <p className="text-[11px] text-gray-400 mt-0.5">{pt.hours}</p>
+                          </div>
+                        </label>
+                      ))}
                     </div>
-                  </label>
+                  )}
+
+                  {/* Self-logistics option */}
+                  {shippingSettings?.selfLogisticsEnabled && (
+                    <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${shipMethod === 'self' ? 'border-red-400 bg-red-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                      <input type="radio" name="shipMethod" value="self" checked={shipMethod === 'self'}
+                        onChange={() => setShipMethod('self')} className="mt-0.5 accent-red-500" />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-semibold text-gray-800">Arrange My Own Delivery</p>
+                          <span className="text-sm font-bold text-gray-800">
+                            {selfFee === 0 ? 'FREE' : formatPrice(selfFee)}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-0.5">Book directly with a logistics provider of your choice</p>
+                      </div>
+                    </label>
+                  )}
 
                   {/* Self-logistics detail panel */}
-                  {shipMethod === 'self' && (
+                  {shipMethod === 'self' && shippingSettings?.selfLogisticsEnabled && (
                     <div className="rounded-xl border border-dashed border-gray-200 p-4 space-y-3 bg-gray-50">
                       {shippingSettings.selfLogisticsNote && (
                         <p className="text-xs text-gray-600 leading-relaxed">{shippingSettings.selfLogisticsNote}</p>
@@ -538,8 +607,8 @@ export default function CheckoutPage() {
                 </div>
               )}
 
-              {/* Delivery address */}
-              <div className="bg-white border border-gray-100 rounded-xl p-5">
+              {/* Delivery address — hidden for store pickup */}
+              <div className={`bg-white border border-gray-100 rounded-xl p-5 ${shipMethod === 'pickup' ? 'hidden' : ''}`}>
                 <h2 className="font-bold text-gray-800 text-sm mb-4 uppercase tracking-wide">
                   {shipMethod === 'self' ? 'Pickup / Collection Address' : 'Delivery Address'}
                 </h2>

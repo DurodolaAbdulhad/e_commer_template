@@ -35,6 +35,15 @@ export const client = {
     estimatedDays: "2–5 business days",
   },
 
+  pickupPoints: [
+    {
+      id:      'ogba',
+      name:    'Ogba Store (Head Office)',
+      address: 'Nob-oluwa Street, Ogba, Ikeja, Lagos',
+      hours:   'Mon – Sat: 9 am – 6 pm',
+    },
+  ],
+
   tax: {
     enabled: false,
     rate: 7.5,
