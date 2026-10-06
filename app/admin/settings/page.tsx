@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { Upload, Loader2, Check, Save, Image as ImageIcon, Type, RefreshCw, Globe, Smile, X, Palette, Radio, Bot } from 'lucide-react'
+import { Upload, Loader2, Check, Save, Image as ImageIcon, Type, RefreshCw, Globe, Smile, X, Palette, Radio, Bot, Bell } from 'lucide-react'
 import { getStoreSetting, saveStoreSetting } from '@/lib/admin-db'
 import { client } from '@/config/client'
 import toast from 'react-hot-toast'
@@ -64,6 +64,15 @@ export default function SettingsPage() {
   const [savedAi,      setSavedAi]      = useState(false)
   const [aiKeyMasked,  setAiKeyMasked]  = useState(true)
 
+  // Newsletter popup
+  const [popupEnabled,  setPopupEnabled]  = useState(true)
+  const [popupTitle,    setPopupTitle]    = useState('Get 10% off your first order')
+  const [popupDesc,     setPopupDesc]     = useState('')
+  const [popupCode,     setPopupCode]     = useState('WELCOME10')
+  const [popupDelay,    setPopupDelay]    = useState(8)
+  const [savingPopup,   setSavingPopup]   = useState(false)
+  const [savedPopup,    setSavedPopup]    = useState(false)
+
   useEffect(() => {
     getStoreSetting('site_title').then(v   => { if (v) setSiteTitle(v) })
     getStoreSetting('site_favicon').then(v => { if (v) setSiteFavicon(v) })
@@ -82,6 +91,11 @@ export default function SettingsPage() {
     getStoreSetting('tiktok_pixel').then(v => { if (v) setTiktokPixel(v) })
     getStoreSetting('clarity_id').then(v   => { if (v) setClarityId(v) })
     getStoreSetting('ai_api_key').then(v  => { if (v) setAiApiKey(v) })
+    getStoreSetting('popup_enabled').then(v => { if (v !== null && v !== undefined) setPopupEnabled(v !== '0' && v !== false) })
+    getStoreSetting('popup_title').then(v       => { if (v) setPopupTitle(v) })
+    getStoreSetting('popup_description').then(v => { if (v) setPopupDesc(v) })
+    getStoreSetting('popup_discount_code').then(v => { if (v) setPopupCode(v) })
+    getStoreSetting('popup_delay').then(v => { if (v) setPopupDelay(Number(v)) })
   }, [])
 
   async function handleFile(file: File) {
@@ -171,6 +185,20 @@ export default function SettingsPage() {
       toast.success(aiApiKey.trim() ? 'AI assistant activated — visible on storefront immediately' : 'AI assistant disabled')
     } catch (e: any) { toast.error(e?.message || 'Save failed') }
     finally { setSavingAi(false) }
+  }
+
+  async function handleSavePopup() {
+    setSavingPopup(true)
+    try {
+      await saveStoreSetting('popup_enabled',       popupEnabled ? '1' : '0')
+      await saveStoreSetting('popup_title',         popupTitle.trim())
+      await saveStoreSetting('popup_description',   popupDesc.trim())
+      await saveStoreSetting('popup_discount_code', popupCode.trim())
+      await saveStoreSetting('popup_delay',         String(popupDelay))
+      setSavedPopup(true)
+      toast.success('Newsletter popup settings saved')
+    } catch (e: any) { toast.error(e?.message || 'Save failed') }
+    finally { setSavingPopup(false) }
   }
 
   async function handleSaveTracking() {
@@ -531,6 +559,98 @@ export default function SettingsPage() {
               style={{ backgroundColor: savedTracking ? '#16a34a' : ACCENT }}>
               {savedTracking ? <><Check size={13} /> Saved</>
                 : savingTracking ? <><Save size={13} className="animate-pulse" /> Saving…</>
+                : <><Save size={13} /> Save</>}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Newsletter Popup ─────────────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-gray-100 bg-gray-50">
+          <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wide flex items-center gap-2">
+            <Bell size={13} /> Newsletter Popup
+          </h3>
+          <p className="text-[10px] text-gray-400 mt-0.5">
+            Configure the discount popup that appears to first-time visitors — collects email and optional WhatsApp
+          </p>
+        </div>
+        <div className="px-5 py-5 space-y-4">
+          {/* Enabled toggle */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-gray-700">Show popup on storefront</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">Disable to hide the popup for all visitors</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setPopupEnabled(v => !v); setSavedPopup(false) }}
+              className="relative w-10 h-5.5 rounded-full transition-colors flex-shrink-0"
+              style={{ backgroundColor: popupEnabled ? ACCENT : '#d1d5db', minWidth: '40px', height: '22px' }}
+            >
+              <span
+                className="absolute top-0.5 w-[18px] h-[18px] bg-white rounded-full shadow transition-transform"
+                style={{ left: popupEnabled ? 'calc(100% - 20px)' : '2px', transitionProperty: 'left' }}
+              />
+            </button>
+          </div>
+
+          {popupEnabled && (
+            <>
+              {/* Title */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Popup Headline</label>
+                <input
+                  value={popupTitle}
+                  onChange={e => { setPopupTitle(e.target.value); setSavedPopup(false) }}
+                  placeholder="Get 10% off your first order"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400"
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Description <span className="font-normal text-gray-400">(optional)</span></label>
+                <textarea
+                  value={popupDesc}
+                  onChange={e => { setPopupDesc(e.target.value); setSavedPopup(false) }}
+                  placeholder="Subscribe for exclusive deals, new arrivals, and updates."
+                  rows={2}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400 resize-none"
+                />
+              </div>
+
+              {/* Discount code */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Discount Code <span className="font-normal text-gray-400">(shown after subscribing)</span></label>
+                <input
+                  value={popupCode}
+                  onChange={e => { setPopupCode(e.target.value.toUpperCase()); setSavedPopup(false) }}
+                  placeholder="WELCOME10"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400 font-mono uppercase"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">Leave blank to hide the code in the thank-you state</p>
+              </div>
+
+              {/* Delay */}
+              <div className="flex items-center gap-4">
+                <label className="text-xs font-semibold text-gray-600 flex-shrink-0 w-36">Delay before popup</label>
+                <input
+                  type="range" min={0} max={60} step={1} value={popupDelay}
+                  onChange={e => { setPopupDelay(Number(e.target.value)); setSavedPopup(false) }}
+                  className="flex-1 accent-red-500"
+                />
+                <span className="text-xs font-mono text-gray-500 w-16 text-right">{popupDelay}s</span>
+              </div>
+            </>
+          )}
+
+          <div className="flex justify-end">
+            <button onClick={handleSavePopup} disabled={savingPopup}
+              className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded-xl text-white hover:opacity-90 disabled:opacity-60"
+              style={{ backgroundColor: savedPopup ? '#16a34a' : ACCENT }}>
+              {savedPopup ? <><Check size={13} /> Saved</>
+                : savingPopup ? <><Save size={13} className="animate-pulse" /> Saving…</>
                 : <><Save size={13} /> Save</>}
             </button>
           </div>
