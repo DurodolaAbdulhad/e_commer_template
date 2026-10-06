@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { Upload, Loader2, Check, Save, Image as ImageIcon, Type, RefreshCw, Globe, Smile, X, Palette, Radio } from 'lucide-react'
+import { Upload, Loader2, Check, Save, Image as ImageIcon, Type, RefreshCw, Globe, Smile, X, Palette, Radio, Bot } from 'lucide-react'
 import { getStoreSetting, saveStoreSetting } from '@/lib/admin-db'
 import { client } from '@/config/client'
 import toast from 'react-hot-toast'
@@ -58,6 +58,12 @@ export default function SettingsPage() {
   const [savingTracking,  setSavingTracking]  = useState(false)
   const [savedTracking,   setSavedTracking]   = useState(false)
 
+  // AI assistant
+  const [aiApiKey,     setAiApiKey]     = useState('')
+  const [savingAi,     setSavingAi]     = useState(false)
+  const [savedAi,      setSavedAi]      = useState(false)
+  const [aiKeyMasked,  setAiKeyMasked]  = useState(true)
+
   useEffect(() => {
     getStoreSetting('site_title').then(v   => { if (v) setSiteTitle(v) })
     getStoreSetting('site_favicon').then(v => { if (v) setSiteFavicon(v) })
@@ -75,6 +81,7 @@ export default function SettingsPage() {
     getStoreSetting('fb_pixel').then(v     => { if (v) setFbPixel(v) })
     getStoreSetting('tiktok_pixel').then(v => { if (v) setTiktokPixel(v) })
     getStoreSetting('clarity_id').then(v   => { if (v) setClarityId(v) })
+    getStoreSetting('ai_api_key').then(v  => { if (v) setAiApiKey(v) })
   }, [])
 
   async function handleFile(file: File) {
@@ -154,6 +161,16 @@ export default function SettingsPage() {
       toast.success('Brand color saved — reload the storefront to see it')
     } catch (e: any) { toast.error(e?.message || 'Save failed') }
     finally { setSavingBrand(false) }
+  }
+
+  async function handleSaveAi() {
+    setSavingAi(true)
+    try {
+      await saveStoreSetting('ai_api_key', aiApiKey.trim())
+      setSavedAi(true)
+      toast.success(aiApiKey.trim() ? 'AI assistant activated — visible on storefront immediately' : 'AI assistant disabled')
+    } catch (e: any) { toast.error(e?.message || 'Save failed') }
+    finally { setSavingAi(false) }
   }
 
   async function handleSaveTracking() {
@@ -514,6 +531,59 @@ export default function SettingsPage() {
               style={{ backgroundColor: savedTracking ? '#16a34a' : ACCENT }}>
               {savedTracking ? <><Check size={13} /> Saved</>
                 : savingTracking ? <><Save size={13} className="animate-pulse" /> Saving…</>
+                : <><Save size={13} /> Save</>}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── AI Shopping Assistant ─────────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-gray-100 bg-gray-50">
+          <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wide flex items-center gap-2">
+            <Bot size={13} /> AI Shopping Assistant
+          </h3>
+          <p className="text-[10px] text-gray-400 mt-0.5">
+            Paste your Anthropic API key to activate a live chat assistant on your storefront — customers can ask about products, prices, and delivery
+          </p>
+        </div>
+        <div className="px-5 py-5 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Anthropic API Key</label>
+            <div className="relative">
+              <input
+                type={aiKeyMasked ? 'password' : 'text'}
+                value={aiApiKey}
+                onChange={e => { setAiApiKey(e.target.value); setSavedAi(false) }}
+                placeholder="sk-ant-api03-…"
+                className="w-full px-3 py-2 pr-20 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400 font-mono"
+                autoComplete="off"
+              />
+              <button
+                type="button"
+                onClick={() => setAiKeyMasked(m => !m)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-gray-400 hover:text-gray-600"
+              >
+                {aiKeyMasked ? 'Show' : 'Hide'}
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-400 mt-1.5">
+              Get your key at <span className="font-mono">console.anthropic.com</span>. Leave blank to disable. The key is stored securely and never sent to browsers.
+            </p>
+          </div>
+
+          {/* Status indicator */}
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium ${aiApiKey.trim() ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-500'}`}>
+            <span className={`w-2 h-2 rounded-full shrink-0 ${aiApiKey.trim() ? 'bg-green-500' : 'bg-gray-300'}`} />
+            {aiApiKey.trim() ? 'Assistant will be active on storefront after saving' : 'No key — assistant hidden on storefront'}
+          </div>
+
+          <div className="flex justify-end">
+            <button onClick={handleSaveAi} disabled={savingAi}
+              className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded-xl text-white hover:opacity-90 disabled:opacity-60"
+              style={{ backgroundColor: savedAi ? '#16a34a' : ACCENT }}>
+              {savedAi ? <><Check size={13} /> Saved</>
+                : savingAi ? <><Save size={13} className="animate-pulse" /> Saving…</>
                 : <><Save size={13} /> Save</>}
             </button>
           </div>

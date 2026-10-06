@@ -16,7 +16,7 @@ const securityHeaders = [
       // Images: self + Supabase storage + Unsplash + Cloudinary + data URIs
       "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://images.unsplash.com https://plus.unsplash.com https://res.cloudinary.com https://lh3.googleusercontent.com",
       // API calls: self + Supabase + Paystack + Resend + Termii + Google Analytics
-      "connect-src 'self' https://*.supabase.co https://*.supabase.in https://api.paystack.co https://api.resend.com https://v3.api.termii.com https://www.google-analytics.com https://analytics.google.com https://www.facebook.com",
+      "connect-src 'self' https://*.supabase.co https://*.supabase.in https://api.paystack.co https://api.resend.com https://v3.api.termii.com https://www.google-analytics.com https://analytics.google.com https://www.facebook.com https://api.anthropic.com",
       // Service workers
       "worker-src 'self'",
       // Frames: Paystack uses iframes

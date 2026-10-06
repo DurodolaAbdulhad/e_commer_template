@@ -13,6 +13,7 @@ import NewsletterPopup from "@/components/ui/NewsletterPopup";
 import AbandonedCartTracker from "@/components/ui/AbandonedCartTracker";
 import PageViewTracker from "@/components/ui/PageViewTracker";
 import ServiceWorkerRegistration from "@/components/ui/ServiceWorkerRegistration";
+import AiAssistant from "@/components/ui/AiAssistant";
 import "./globals.css";
 
 
@@ -144,6 +145,7 @@ export default async function RootLayout({
             <AbandonedCartTracker />
             <PageViewTracker />
             <ServiceWorkerRegistration />
+            <AiAssistant />
             <Toaster
               position="top-right"
               toastOptions={{
