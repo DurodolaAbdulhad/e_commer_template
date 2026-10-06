@@ -53,6 +53,8 @@ export default function CheckoutPage() {
   const [giftCard, setGiftCard] = useState('')
   const [giftCardApplied, setGiftCardApplied] = useState('')
   const [giftCardDiscount, setGiftCardDiscount] = useState(0)
+  const [walletBalance,    setWalletBalance]    = useState(0)
+  const [walletApplied,    setWalletApplied]    = useState(false)
   const [loading,          setLoading]          = useState(false)
   const [mounted,          setMounted]          = useState(false)
   const [shippingSettings, setShippingSettings] = useState<any>(null)
@@ -100,13 +102,25 @@ export default function CheckoutPage() {
     return [...new Set(allAreas)].sort()
   })()
   const vatRate     = client.tax?.enabled && !client.tax?.inclusive ? (client.tax.rate ?? 0) / 100 : 0
+  const walletDiscount = walletApplied ? Math.min(walletBalance, subtotal) : 0
   // Shipping not included in customer total — merchant absorbs it
-  const totalBeforeVat = subtotal - discount - (autoDiscount?.value ?? 0) - giftCardDiscount - wholesaleDiscount
+  const totalBeforeVat = subtotal - discount - (autoDiscount?.value ?? 0) - giftCardDiscount - wholesaleDiscount - walletDiscount
   const vatAmount   = Math.floor(totalBeforeVat * vatRate)
-  const total       = totalBeforeVat + vatAmount
+  const total       = Math.max(0, totalBeforeVat + vatAmount)
 
   function set(key: keyof FormData, val: string) {
     setForm(prev => ({ ...prev, [key]: val }))
+  }
+
+  async function checkWalletBalance(email: string) {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return
+    try {
+      const res = await fetch(`/api/wallet/balance?email=${encodeURIComponent(email.trim())}`)
+      if (!res.ok) return
+      const { balance } = await res.json()
+      setWalletBalance(balance ?? 0)
+      if (balance <= 0) setWalletApplied(false)
+    } catch {}
   }
 
   async function applyCoupon() {
@@ -244,7 +258,7 @@ export default function CheckoutPage() {
           total:           verifiedTotal,
           subtotal,
           shipping_cost:   verifiedShipping,   // merchant absorbs — recorded but not charged
-          discount:        verifiedCouponDisc + (autoDiscount?.value ?? 0) + giftCardDiscount + wholesaleDiscount,
+          discount:        verifiedCouponDisc + (autoDiscount?.value ?? 0) + giftCardDiscount + wholesaleDiscount + walletDiscount,
           vat:             vatAmount,
           items: (items as any[]).map((i: any) => ({
             id: i.id, name: i.name, price: i.price,
@@ -259,6 +273,8 @@ export default function CheckoutPage() {
           payment_method:    'paystack',
           payment_reference: reference,
           coupon_code:       couponApplied || null,
+          wallet_discount:   walletDiscount > 0 ? walletDiscount : null,
+          wallet_email:      walletDiscount > 0 ? form.email : null,
           delivery_method:   shipMethod === 'self' ? 'self_logistics' : 'store_delivery',
         }
         // Fallback: store locally so confirmation page can render even if server save is slow
@@ -333,7 +349,7 @@ export default function CheckoutPage() {
       })),
       subtotal,
       shipping_cost: merchantShipping,
-      discount: finalCouponDisc + (autoDiscount?.value ?? 0) + giftCardDiscount + wholesaleDiscount,
+      discount: finalCouponDisc + (autoDiscount?.value ?? 0) + giftCardDiscount + wholesaleDiscount + walletDiscount,
       vat: vatAmount,
       total: finalTotal,
       price_sig: verifiedSig ?? null,
@@ -434,7 +450,7 @@ export default function CheckoutPage() {
                   </div>
                   <div>
                     <Label>Email Address *</Label>
-                    <Input type="email" value={form.email} onChange={v => set('email', v)} placeholder="you@example.com" />
+                    <Input type="email" value={form.email} onChange={v => set('email', v)} onBlur={() => checkWalletBalance(form.email)} placeholder="you@example.com" />
                   </div>
                   <div>
                     <Label>Phone Number *</Label>
@@ -646,6 +662,23 @@ export default function CheckoutPage() {
                       </div>
                     </div>
                   )}
+
+                  {walletBalance > 0 && (
+                    <div className="flex items-center justify-between gap-2 p-3 rounded-xl border border-green-200 bg-green-50">
+                      <div>
+                        <p className="text-xs font-semibold text-green-800">
+                          💰 Wallet Credit: {formatPrice(walletBalance)}
+                        </p>
+                        <p className="text-[11px] text-green-600 mt-0.5">Available from a previous refund</p>
+                      </div>
+                      <button
+                        onClick={() => setWalletApplied(a => !a)}
+                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${walletApplied ? 'bg-green-600 text-white' : 'border border-green-400 text-green-700 hover:bg-green-100'}`}
+                      >
+                        {walletApplied ? '✓ Applied' : 'Apply'}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Totals */}
@@ -655,6 +688,7 @@ export default function CheckoutPage() {
                   {autoDiscount && <Row label={autoDiscount.name} value={`-${formatPrice(autoDiscount.value)}`} accent />}
                   {wholesaleDiscount > 0 && <Row label={`Wholesale (${client.wholesale?.discountPercent}% off)`} value={`-${formatPrice(wholesaleDiscount)}`} accent />}
                   {giftCardDiscount > 0 && <Row label={`Gift Card (${giftCardApplied})`} value={`-${formatPrice(giftCardDiscount)}`} accent />}
+                  {walletDiscount > 0 && <Row label="Wallet Credit" value={`-${formatPrice(walletDiscount)}`} accent />}
                   {vatAmount > 0 && <Row label={client.tax?.label ?? 'VAT'} value={formatPrice(vatAmount)} />}
                   <div className="flex justify-between items-center pt-2 border-t border-gray-100">
                     <span className="text-sm font-bold text-gray-800">Total</span>
@@ -707,9 +741,10 @@ function Label({ children }: { children: React.ReactNode }) {
   return <label className="block text-xs font-medium text-gray-600 mb-1">{children}</label>
 }
 
-function Input({ value, onChange, placeholder = '', type = 'text', disabled = false }: {
+function Input({ value, onChange, onBlur, placeholder = '', type = 'text', disabled = false }: {
   value: string
   onChange?: (v: string) => void
+  onBlur?: () => void
   placeholder?: string
   type?: string
   disabled?: boolean
@@ -719,6 +754,7 @@ function Input({ value, onChange, placeholder = '', type = 'text', disabled = fa
       type={type}
       value={value}
       onChange={e => onChange?.(e.target.value)}
+      onBlur={onBlur}
       placeholder={placeholder}
       disabled={disabled}
       className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none text-gray-700 placeholder-gray-400 focus:border-gray-400 disabled:bg-gray-50 disabled:text-gray-400"

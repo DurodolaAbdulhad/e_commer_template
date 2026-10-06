@@ -22,6 +22,9 @@ export default function AdminOrderDetailPage() {
   const [loading, setLoading] = useState(true)
   const [status,  setStatus]  = useState('')
   const [saving,  setSaving]  = useState(false)
+  const [refundAmt,    setRefundAmt]    = useState('')
+  const [refunding,    setRefunding]    = useState(false)
+  const [refundDone,   setRefundDone]   = useState(false)
 
   useEffect(() => {
     getOrder(id).then(o => {
@@ -40,6 +43,34 @@ export default function AdminOrderDetailPage() {
       toast.error('Could not update status')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleWalletRefund() {
+    const amt = parseFloat(refundAmt)
+    if (!amt || amt <= 0) { toast.error('Enter a valid refund amount'); return }
+    const email = order?.email || order?.address?.email
+    if (!email) { toast.error('No customer email on this order'); return }
+    setRefunding(true)
+    try {
+      const res = await fetch('/api/admin/wallet/credit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          amount: amt,
+          description: `Refund for order ${order.order_number || order.id}`,
+          order_id: order.id ?? null,
+        }),
+      })
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed')
+      toast.success(`₦${amt.toLocaleString()} wallet credit added for ${email}`)
+      setRefundDone(true)
+      setRefundAmt('')
+    } catch (e: any) {
+      toast.error(e.message || 'Could not add wallet credit')
+    } finally {
+      setRefunding(false)
     }
   }
 
@@ -178,6 +209,37 @@ export default function AdminOrderDetailPage() {
             <Package size={13} />
             View Customer Receipt
           </Link>
+
+          {/* Wallet refund */}
+          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <div className="px-4 py-3.5 border-b border-gray-100 bg-gray-50">
+              <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wide">Refund to Wallet</h3>
+            </div>
+            <div className="p-4 space-y-3">
+              <p className="text-xs text-gray-500">
+                Credit funds to the customer&apos;s store wallet for use on their next order.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  value={refundAmt}
+                  onChange={e => setRefundAmt(e.target.value)}
+                  placeholder="Amount (₦)"
+                  disabled={refundDone}
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-xs outline-none text-gray-700 placeholder-gray-400 focus:border-gray-400 disabled:bg-gray-50"
+                />
+                <button
+                  onClick={handleWalletRefund}
+                  disabled={refunding || refundDone}
+                  className="px-3 py-2 text-xs font-semibold text-white rounded-lg disabled:opacity-60 transition-opacity"
+                  style={{ backgroundColor: ACCENT }}
+                >
+                  {refunding ? '…' : refundDone ? '✓ Done' : 'Credit'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -114,6 +114,21 @@ export async function POST(req: NextRequest) {
       try { await supabase.from('order_items').insert(orderItems) } catch (_) {}
     }
 
+    // Debit wallet if customer used wallet credit
+    if (orderData.wallet_discount && orderData.wallet_discount > 0 && orderData.wallet_email) {
+      try {
+        await supabase.from('wallet_ledger').insert({
+          email:       orderData.wallet_email.trim().toLowerCase(),
+          type:        'debit',
+          amount:      orderData.wallet_discount,
+          description: `Used at checkout for order ${orderData.order_number}`,
+          order_id:    inserted?.id ?? null,
+        })
+      } catch (e: any) {
+        console.error('[verify] Wallet debit failed:', e?.message)
+      }
+    }
+
     return NextResponse.json({ verified: true, dbSaved: true, orderId: inserted?.id })
   } catch (e: any) {
     console.error('[verify] Unexpected error:', e?.message)
