@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServiceClient, isServiceClientReady } from '@/lib/supabase-service'
 import { verifyPriceSig } from '@/app/api/checkout/initiate/route'
+import { client } from '@/config/client'
 
 export async function POST(req: NextRequest) {
   let body: any
@@ -126,6 +127,43 @@ export async function POST(req: NextRequest) {
         })
       } catch (e: any) {
         console.error('[verify] Wallet debit failed:', e?.message)
+      }
+    }
+
+    // Loyalty points: debit used points, then earn new points
+    if (client.features?.loyalty && client.loyalty?.enabled) {
+      const loyaltyEmail = (orderData.loyalty_email ?? orderData.address?.email ?? '').trim().toLowerCase()
+
+      // Debit redeemed points
+      if (orderData.loyalty_points_used && orderData.loyalty_points_used > 0 && loyaltyEmail) {
+        try {
+          await supabase.from('loyalty_points').insert({
+            email:       loyaltyEmail,
+            type:        'redeem',
+            points:      orderData.loyalty_points_used,
+            description: `Redeemed at checkout for order ${orderData.order_number}`,
+            order_id:    inserted?.id ?? null,
+          })
+        } catch (e: any) {
+          console.error('[verify] Loyalty debit failed:', e?.message)
+        }
+      }
+
+      // Earn points on the amount actually paid (after all discounts)
+      const pointsPerHundred = client.loyalty.pointsPerHundredNaira ?? 1
+      const earnedPoints = Math.floor((orderData.total ?? paidAmount) / 100) * pointsPerHundred
+      if (earnedPoints > 0 && loyaltyEmail) {
+        try {
+          await supabase.from('loyalty_points').insert({
+            email:       loyaltyEmail,
+            type:        'earn',
+            points:      earnedPoints,
+            description: `Earned on order ${orderData.order_number}`,
+            order_id:    inserted?.id ?? null,
+          })
+        } catch (e: any) {
+          console.error('[verify] Loyalty earn failed:', e?.message)
+        }
       }
     }
 

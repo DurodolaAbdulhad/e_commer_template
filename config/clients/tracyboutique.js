@@ -68,6 +68,13 @@ export const client = {
 
   paymentGateway: "paystack",
 
+  loyalty: {
+    enabled: true,
+    pointsPerHundredNaira: 1,
+    nairaPerPoint: 1,
+    minRedeemPoints: 100,
+  },
+
   features: {
     wishlist: true,
     reviews: true,
@@ -83,5 +90,6 @@ export const client = {
     bundles: true,
     abandonedCart: true,
     smsNotifications: false,
+    loyalty: true,
   },
 }

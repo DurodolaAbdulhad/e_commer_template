@@ -55,6 +55,8 @@ export default function CheckoutPage() {
   const [giftCardDiscount, setGiftCardDiscount] = useState(0)
   const [walletBalance,    setWalletBalance]    = useState(0)
   const [walletApplied,    setWalletApplied]    = useState(false)
+  const [loyaltyPoints,    setLoyaltyPoints]    = useState(0)
+  const [loyaltyApplied,   setLoyaltyApplied]   = useState(false)
   const [loading,          setLoading]          = useState(false)
   const [mounted,          setMounted]          = useState(false)
   const [shippingSettings, setShippingSettings] = useState<any>(null)
@@ -102,9 +104,15 @@ export default function CheckoutPage() {
     return [...new Set(allAreas)].sort()
   })()
   const vatRate     = client.tax?.enabled && !client.tax?.inclusive ? (client.tax.rate ?? 0) / 100 : 0
-  const walletDiscount = walletApplied ? Math.min(walletBalance, subtotal) : 0
+  const loyalty          = client.loyalty
+  const nairaPerPoint    = loyalty?.nairaPerPoint ?? 1
+  const minRedeemPoints  = loyalty?.minRedeemPoints ?? 100
+  const walletDiscount   = walletApplied ? Math.min(walletBalance, subtotal) : 0
+  const loyaltyDiscount  = loyaltyApplied && loyaltyPoints >= minRedeemPoints
+    ? Math.min(loyaltyPoints * nairaPerPoint, subtotal)
+    : 0
   // Shipping not included in customer total — merchant absorbs it
-  const totalBeforeVat = subtotal - discount - (autoDiscount?.value ?? 0) - giftCardDiscount - wholesaleDiscount - walletDiscount
+  const totalBeforeVat = subtotal - discount - (autoDiscount?.value ?? 0) - giftCardDiscount - wholesaleDiscount - walletDiscount - loyaltyDiscount
   const vatAmount   = Math.floor(totalBeforeVat * vatRate)
   const total       = Math.max(0, totalBeforeVat + vatAmount)
 
@@ -115,11 +123,20 @@ export default function CheckoutPage() {
   async function checkWalletBalance(email: string) {
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return
     try {
-      const res = await fetch(`/api/wallet/balance?email=${encodeURIComponent(email.trim())}`)
-      if (!res.ok) return
-      const { balance } = await res.json()
-      setWalletBalance(balance ?? 0)
-      if (balance <= 0) setWalletApplied(false)
+      const [walletRes, loyaltyRes] = await Promise.all([
+        fetch(`/api/wallet/balance?email=${encodeURIComponent(email.trim())}`),
+        client.features?.loyalty ? fetch(`/api/loyalty/balance?email=${encodeURIComponent(email.trim())}`) : Promise.resolve(null),
+      ])
+      if (walletRes.ok) {
+        const { balance } = await walletRes.json()
+        setWalletBalance(balance ?? 0)
+        if ((balance ?? 0) <= 0) setWalletApplied(false)
+      }
+      if (loyaltyRes?.ok) {
+        const { points } = await loyaltyRes.json()
+        setLoyaltyPoints(points ?? 0)
+        if ((points ?? 0) <= 0) setLoyaltyApplied(false)
+      }
     } catch {}
   }
 
@@ -258,7 +275,7 @@ export default function CheckoutPage() {
           total:           verifiedTotal,
           subtotal,
           shipping_cost:   verifiedShipping,   // merchant absorbs — recorded but not charged
-          discount:        verifiedCouponDisc + (autoDiscount?.value ?? 0) + giftCardDiscount + wholesaleDiscount + walletDiscount,
+          discount:        verifiedCouponDisc + (autoDiscount?.value ?? 0) + giftCardDiscount + wholesaleDiscount + walletDiscount + loyaltyDiscount,
           vat:             vatAmount,
           items: (items as any[]).map((i: any) => ({
             id: i.id, name: i.name, price: i.price,
@@ -275,6 +292,8 @@ export default function CheckoutPage() {
           coupon_code:       couponApplied || null,
           wallet_discount:   walletDiscount > 0 ? walletDiscount : null,
           wallet_email:      walletDiscount > 0 ? form.email : null,
+          loyalty_points_used: loyaltyDiscount > 0 ? Math.ceil(loyaltyDiscount / nairaPerPoint) : null,
+          loyalty_email:     loyaltyDiscount > 0 ? form.email : null,
           delivery_method:   shipMethod === 'self' ? 'self_logistics' : 'store_delivery',
         }
         // Fallback: store locally so confirmation page can render even if server save is slow
@@ -349,7 +368,7 @@ export default function CheckoutPage() {
       })),
       subtotal,
       shipping_cost: merchantShipping,
-      discount: finalCouponDisc + (autoDiscount?.value ?? 0) + giftCardDiscount + wholesaleDiscount + walletDiscount,
+      discount: finalCouponDisc + (autoDiscount?.value ?? 0) + giftCardDiscount + wholesaleDiscount + walletDiscount + loyaltyDiscount,
       vat: vatAmount,
       total: finalTotal,
       price_sig: verifiedSig ?? null,
@@ -679,6 +698,23 @@ export default function CheckoutPage() {
                       </button>
                     </div>
                   )}
+
+                  {client.features?.loyalty && loyaltyPoints >= minRedeemPoints && (
+                    <div className="flex items-center justify-between gap-2 p-3 rounded-xl border border-amber-200 bg-amber-50">
+                      <div>
+                        <p className="text-xs font-semibold text-amber-800">
+                          ⭐ {loyaltyPoints.toLocaleString()} Points = {formatPrice(loyaltyPoints * nairaPerPoint)}
+                        </p>
+                        <p className="text-[11px] text-amber-600 mt-0.5">Your loyalty reward</p>
+                      </div>
+                      <button
+                        onClick={() => setLoyaltyApplied(a => !a)}
+                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${loyaltyApplied ? 'bg-amber-500 text-white' : 'border border-amber-400 text-amber-700 hover:bg-amber-100'}`}
+                      >
+                        {loyaltyApplied ? '✓ Applied' : 'Redeem'}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Totals */}
@@ -689,6 +725,7 @@ export default function CheckoutPage() {
                   {wholesaleDiscount > 0 && <Row label={`Wholesale (${client.wholesale?.discountPercent}% off)`} value={`-${formatPrice(wholesaleDiscount)}`} accent />}
                   {giftCardDiscount > 0 && <Row label={`Gift Card (${giftCardApplied})`} value={`-${formatPrice(giftCardDiscount)}`} accent />}
                   {walletDiscount > 0 && <Row label="Wallet Credit" value={`-${formatPrice(walletDiscount)}`} accent />}
+                  {loyaltyDiscount > 0 && <Row label={`Loyalty Points (${loyaltyPoints.toLocaleString()} pts)`} value={`-${formatPrice(loyaltyDiscount)}`} accent />}
                   {vatAmount > 0 && <Row label={client.tax?.label ?? 'VAT'} value={formatPrice(vatAmount)} />}
                   <div className="flex justify-between items-center pt-2 border-t border-gray-100">
                     <span className="text-sm font-bold text-gray-800">Total</span>
