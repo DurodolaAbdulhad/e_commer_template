@@ -2,37 +2,42 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ShoppingBag, ChevronRight, Search } from 'lucide-react'
+import { ShoppingBag, ChevronRight, Search, Loader2 } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
+import { getCustomerOrders } from '@/lib/admin-db'
 import { formatPrice } from '@/lib/utils'
+import { client } from '@/config/client'
 
-const ACCENT = '#e84c3d'
+const ACCENT = client.colors.primary
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  pending:    { bg: '#fff5f5', text: ACCENT },
-  processing: { bg: '#eff6ff', text: '#2563eb' },
-  shipped:    { bg: '#f0fdf4', text: '#16a34a' },
-  delivered:  { bg: '#f0fdf4', text: '#16a34a' },
-  cancelled:  { bg: '#f9fafb', text: '#6b7280' },
+  pending:    { bg: `${ACCENT}15`, text: ACCENT },
+  processing: { bg: '#eff6ff',     text: '#2563eb' },
+  shipped:    { bg: '#f0fdf4',     text: '#16a34a' },
+  delivered:  { bg: '#f0fdf4',     text: '#16a34a' },
+  cancelled:  { bg: '#f9fafb',     text: '#6b7280' },
 }
 
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<any[]>([])
-  const [search, setSearch] = useState('')
+  const { user }  = useAuth()
+  const [orders,  setOrders]  = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search,  setSearch]  = useState('')
 
   useEffect(() => {
-    const keys = Object.keys(localStorage).filter(k => k.startsWith('order_'))
-    const loaded = keys
-      .map(k => { try { return JSON.parse(localStorage.getItem(k) ?? '') } catch { return null } })
-      .filter(Boolean)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    setOrders(loaded)
-  }, [])
+    if (!user?.email) return
+    setLoading(true)
+    getCustomerOrders(user.email)
+      .then(setOrders)
+      .catch(() => setOrders([]))
+      .finally(() => setLoading(false))
+  }, [user?.email])
 
-  const filtered = orders.filter(o =>
-    !search ||
-    (o.reference ?? '').toLowerCase().includes(search.toLowerCase()) ||
-    (o.id ?? '').toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = orders.filter(o => {
+    if (!search) return true
+    const ref = (o.payment_reference ?? o.id ?? '').toLowerCase()
+    return ref.includes(search.toLowerCase())
+  })
 
   return (
     <div>
@@ -55,7 +60,12 @@ export default function OrdersPage() {
           <span />
         </div>
 
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="px-5 py-12 flex items-center justify-center gap-2 text-gray-400">
+            <Loader2 size={18} className="animate-spin" />
+            <span className="text-sm">Loading your orders…</span>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="px-5 py-12 text-center">
             <ShoppingBag size={36} className="text-gray-200 mx-auto mb-3" />
             <p className="text-sm text-gray-400">{search ? 'No orders match your search.' : "You haven't placed any orders yet."}</p>
@@ -67,21 +77,22 @@ export default function OrdersPage() {
           </div>
         ) : (
           filtered.map(order => {
-            const ref = order.reference || order.id || ''
+            const ref    = order.payment_reference || order.id || ''
             const status = order.status || 'pending'
             const colors = STATUS_COLORS[status] ?? STATUS_COLORS.pending
-            const date = order.createdAt
-              ? new Date(order.createdAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
+            const date   = (order.created_at || order.createdAt)
+              ? new Date(order.created_at || order.createdAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
               : ''
+            const itemCount = order.items?.length ?? order.cart?.length ?? 0
 
             return (
-              <Link key={ref} href={`/account/orders/${ref}`}
+              <Link key={order.id} href={`/account/orders/${order.id}`}
                 className="grid grid-cols-1 sm:grid-cols-[1fr_80px_100px_80px_36px] gap-1 sm:gap-3 items-center px-5 py-4 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors group">
                 <div>
-                  <p className="text-sm font-semibold text-gray-700">{ref}</p>
+                  <p className="text-sm font-semibold text-gray-700">{ref || order.id}</p>
                   <p className="text-xs text-gray-400 mt-0.5">{date}</p>
                 </div>
-                <p className="text-xs text-gray-500 sm:text-center hidden sm:block">{order.items?.length ?? 0}</p>
+                <p className="text-xs text-gray-500 sm:text-center hidden sm:block">{itemCount}</p>
                 <p className="text-xs font-bold sm:text-center" style={{ color: ACCENT }}>{formatPrice(order.total ?? 0)}</p>
                 <div className="sm:text-center">
                   <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize"

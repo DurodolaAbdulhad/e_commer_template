@@ -4,12 +4,14 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { ArrowLeft, CheckCircle, Clock, Package, Truck, MapPin, Phone, Mail, RotateCcw } from 'lucide-react'
+import { ArrowLeft, CheckCircle, Clock, Package, Truck, MapPin, Phone, Mail, RotateCcw, Loader2 } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
+import { getCustomerOrder, createReturn, getReturns } from '@/lib/admin-db'
 import { formatPrice } from '@/lib/utils'
-import { createReturn, getReturns } from '@/lib/admin-db'
+import { client } from '@/config/client'
 import toast from 'react-hot-toast'
 
-const ACCENT = '#e84c3d'
+const ACCENT = client.colors.primary
 const GREEN  = '#16a34a'
 
 const STEPS = [
@@ -25,31 +27,32 @@ function stepIndex(status: string) {
 }
 
 export default function OrderDetailPage() {
-  const { id } = useParams<{ id: string }>()
-  const [order, setOrder] = useState<any>(null)
+  const { id }   = useParams<{ id: string }>()
+  const { user } = useAuth()
+
+  const [order,          setOrder]          = useState<any>(null)
+  const [loading,        setLoading]        = useState(true)
   const [existingReturn, setExistingReturn] = useState<any>(null)
   const [showReturnForm, setShowReturnForm] = useState(false)
-  const [returnReason, setReturnReason] = useState('')
-  const [submitting, setSubmitting] = useState(false)
+  const [returnReason,   setReturnReason]   = useState('')
+  const [submitting,     setSubmitting]     = useState(false)
 
   useEffect(() => {
-    // Try order_{id} or order_{ref} keys
-    const keys = Object.keys(localStorage).filter(k => k.startsWith('order_'))
-    for (const key of keys) {
-      try {
-        const data = JSON.parse(localStorage.getItem(key) ?? '')
-        if (data && (data.id === id || data.reference === id || key === `order_${id}`)) {
-          setOrder(data)
-          break
-        }
-      } catch {}
-    }
-  }, [id])
+    if (!user?.email || !id) return
+    setLoading(true)
+    getCustomerOrder(id, user.email)
+      .then(data => setOrder(data ?? null))
+      .catch(() => setOrder(null))
+      .finally(() => setLoading(false))
+  }, [id, user?.email])
 
   useEffect(() => {
     if (!order) return
     getReturns().then((returns: any[]) => {
-      const found = returns.find(r => r.order_id === order.id || r.order_reference === (order.reference || id))
+      const found = returns.find(r =>
+        r.order_id === order.id ||
+        r.order_reference === (order.payment_reference || id)
+      )
       if (found) setExistingReturn(found)
     }).catch(() => {})
   }, [order, id])
@@ -59,16 +62,16 @@ export default function OrderDetailPage() {
     setSubmitting(true)
     try {
       await createReturn({
-        order_id: order.id,
-        order_number: order.order_number || order.reference,
-        customer_email: order.address?.email || '',
-        customer_name: order.address?.fullName || '',
-        items: order.items ?? [],
-        reason: returnReason.trim(),
-        status: 'requested',
-        created_at: new Date().toISOString(),
+        order_id:       order.id,
+        order_number:   order.payment_reference || order.id,
+        customer_email: order.email || user?.email || '',
+        customer_name:  order.contact?.full_name || order.address?.fullName || '',
+        items:          order.items ?? order.cart ?? [],
+        reason:         returnReason.trim(),
+        status:         'requested',
+        created_at:     new Date().toISOString(),
       })
-      toast.success('Return request submitted! We\'ll review it and respond within 2 business days.')
+      toast.success("Return request submitted! We'll review it and respond within 2 business days.")
       setShowReturnForm(false)
       setExistingReturn({ status: 'requested' })
     } catch (err: any) {
@@ -77,6 +80,13 @@ export default function OrderDetailPage() {
       setSubmitting(false)
     }
   }
+
+  if (loading) return (
+    <div className="bg-white rounded-lg border border-gray-100 px-5 py-16 flex items-center justify-center gap-2 text-gray-400">
+      <Loader2 size={18} className="animate-spin" />
+      <span className="text-sm">Loading order…</span>
+    </div>
+  )
 
   if (!order) return (
     <div className="bg-white rounded-lg border border-gray-100 px-5 py-12 text-center">
@@ -88,9 +98,21 @@ export default function OrderDetailPage() {
     </div>
   )
 
-  const status    = order.status || 'pending'
-  const step      = stepIndex(status)
-  const date      = order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-NG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : ''
+  const status = order.status || 'pending'
+  const step   = stepIndex(status)
+  const ref    = order.payment_reference || order.id
+  const date   = (order.created_at || order.createdAt)
+    ? new Date(order.created_at || order.createdAt).toLocaleDateString('en-NG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    : ''
+  const items  = order.items ?? order.cart ?? []
+
+  // Delivery address: support both old (order.address) and new (order.contact + order.address) shapes
+  const contactEmail = order.email || order.contact?.email || order.address?.email || ''
+  const contactPhone = order.contact?.phone || order.phone || order.address?.phone || ''
+  const addrName     = [order.contact?.full_name, order.address?.firstName, order.address?.lastName].filter(Boolean).join(' ')
+  const addrStreet   = order.address?.address || order.address?.street || ''
+  const addrCity     = order.address?.city || ''
+  const addrState    = order.address?.state || ''
 
   return (
     <div className="space-y-4">
@@ -101,7 +123,7 @@ export default function OrderDetailPage() {
         </Link>
         <div>
           <h2 className="text-sm font-bold text-gray-800" style={{ fontFamily: 'var(--font-heading)' }}>
-            Order {order.reference || order.id}
+            Order {ref}
           </h2>
           <p className="text-xs text-gray-400">{date}</p>
         </div>
@@ -113,12 +135,10 @@ export default function OrderDetailPage() {
         <div className="flex items-start">
           {STEPS.map(({ label, icon: Icon }, i) => (
             <div key={label} className="flex-1 flex flex-col items-center relative">
-              {/* Connector line */}
               {i < STEPS.length - 1 && (
                 <div className="absolute top-4 left-1/2 w-full h-0.5 z-0"
                   style={{ backgroundColor: i < step ? GREEN : '#e5e7eb' }} />
               )}
-              {/* Circle */}
               <div className="relative z-10 w-8 h-8 rounded-full flex items-center justify-center mb-2"
                 style={{
                   backgroundColor: i <= step ? (i < step ? GREEN : ACCENT) : '#f3f4f6',
@@ -140,11 +160,11 @@ export default function OrderDetailPage() {
         <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wide px-5 py-3.5 border-b border-gray-100">
           Items Ordered
         </h3>
-        {(order.items ?? []).map((item: any, i: number) => (
+        {items.map((item: any, i: number) => (
           <div key={i} className="flex items-center gap-4 px-5 py-3.5 border-b border-gray-50 last:border-0">
             <div className="w-14 h-14 bg-gray-50 rounded border border-gray-100 overflow-hidden relative shrink-0">
-              {item.images?.[0]
-                ? <Image src={item.images[0]} alt={item.name} fill className="object-cover" sizes="56px" />
+              {item.images?.[0] || item.image
+                ? <Image src={item.images?.[0] ?? item.image} alt={item.name} fill className="object-cover" sizes="56px" />
                 : <div className="w-full h-full flex items-center justify-center text-xs font-bold text-gray-300">{item.name?.charAt(0)}</div>
               }
             </div>
@@ -154,7 +174,7 @@ export default function OrderDetailPage() {
               <p className="text-xs text-gray-400 mt-0.5">Qty: {item.quantity}</p>
             </div>
             <p className="text-sm font-bold shrink-0" style={{ color: ACCENT }}>
-              {formatPrice(item.price * item.quantity)}
+              {formatPrice((item.price ?? 0) * (item.quantity ?? 1))}
             </p>
           </div>
         ))}
@@ -173,14 +193,12 @@ export default function OrderDetailPage() {
                 <div className="w-2 h-2 rounded-full"
                   style={{ backgroundColor: existingReturn.status === 'approved' ? '#16a34a' : existingReturn.status === 'rejected' ? '#dc2626' : '#f59e0b' }} />
                 <div>
-                  <p className="text-sm font-medium text-gray-700 capitalize">
-                    Return {existingReturn.status}
-                  </p>
+                  <p className="text-sm font-medium text-gray-700 capitalize">Return {existingReturn.status}</p>
                   <p className="text-xs text-gray-400 mt-0.5">
-                    {existingReturn.status === 'requested' && 'Under review — we\'ll respond within 2 business days.'}
-                    {existingReturn.status === 'approved' && 'Approved. Please ship the items back.'}
-                    {existingReturn.status === 'rejected' && 'Unfortunately this return was rejected. Contact support for assistance.'}
-                    {existingReturn.status === 'refunded' && 'Refund processed successfully.'}
+                    {existingReturn.status === 'requested' && "Under review — we'll respond within 2 business days."}
+                    {existingReturn.status === 'approved'  && 'Approved. Please ship the items back.'}
+                    {existingReturn.status === 'rejected'  && 'Unfortunately this return was rejected. Contact support for assistance.'}
+                    {existingReturn.status === 'refunded'  && 'Refund processed successfully.'}
                   </p>
                 </div>
               </div>
@@ -222,47 +240,45 @@ export default function OrderDetailPage() {
 
       {/* Two columns: Delivery + Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Delivery info */}
         <div className="bg-white rounded-lg border border-gray-100 overflow-hidden">
           <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wide px-5 py-3.5 border-b border-gray-100">
             Delivery Address
           </h3>
           <div className="px-5 py-4 space-y-2.5">
-            {order.contact && (
-              <>
-                <div className="flex items-start gap-2.5">
-                  <Mail size={13} className="text-gray-400 mt-0.5 shrink-0" />
-                  <span className="text-xs text-gray-600">{order.contact.email}</span>
-                </div>
-                <div className="flex items-start gap-2.5">
-                  <Phone size={13} className="text-gray-400 mt-0.5 shrink-0" />
-                  <span className="text-xs text-gray-600">{order.contact.phone}</span>
-                </div>
-              </>
+            {contactEmail && (
+              <div className="flex items-start gap-2.5">
+                <Mail size={13} className="text-gray-400 mt-0.5 shrink-0" />
+                <span className="text-xs text-gray-600">{contactEmail}</span>
+              </div>
             )}
-            {order.address && (
+            {contactPhone && (
+              <div className="flex items-start gap-2.5">
+                <Phone size={13} className="text-gray-400 mt-0.5 shrink-0" />
+                <span className="text-xs text-gray-600">{contactPhone}</span>
+              </div>
+            )}
+            {(addrName || addrStreet) && (
               <div className="flex items-start gap-2.5">
                 <MapPin size={13} className="text-gray-400 mt-0.5 shrink-0" />
                 <span className="text-xs text-gray-600">
-                  {[order.address.firstName, order.address.lastName].filter(Boolean).join(' ')}<br />
-                  {order.address.address}<br />
-                  {[order.address.city, order.address.state].filter(Boolean).join(', ')}
+                  {addrName && <>{addrName}<br /></>}
+                  {addrStreet && <>{addrStreet}<br /></>}
+                  {[addrCity, addrState].filter(Boolean).join(', ')}
                 </span>
               </div>
             )}
           </div>
         </div>
 
-        {/* Order summary */}
         <div className="bg-white rounded-lg border border-gray-100 overflow-hidden">
           <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wide px-5 py-3.5 border-b border-gray-100">
             Payment Summary
           </h3>
           <div className="px-5 py-4 space-y-2.5">
             {[
-              { label: 'Subtotal',  value: formatPrice(order.subtotal ?? 0) },
-              { label: 'Shipping',  value: order.shipping === 0 ? 'Free' : formatPrice(order.shipping ?? 0) },
-              order.discount && { label: 'Discount', value: `-${formatPrice(order.discount)}` },
+              { label: 'Subtotal', value: formatPrice(order.subtotal ?? 0) },
+              { label: 'Shipping', value: order.shipping === 0 ? 'Free' : formatPrice(order.shipping ?? 0) },
+              order.discount ? { label: 'Discount', value: `-${formatPrice(order.discount)}` } : null,
             ].filter(Boolean).map((row: any) => (
               <div key={row.label} className="flex justify-between text-xs">
                 <span className="text-gray-500">{row.label}</span>
@@ -274,7 +290,7 @@ export default function OrderDetailPage() {
               <span style={{ color: ACCENT }}>{formatPrice(order.total ?? 0)}</span>
             </div>
             <p className="text-[10px] text-gray-400 pt-1">
-              Payment method: {order.paymentMethod || 'Paystack'}
+              Payment method: {order.payment_method || order.paymentMethod || 'Paystack'}
             </p>
           </div>
         </div>
