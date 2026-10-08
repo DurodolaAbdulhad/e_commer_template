@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { Upload, Loader2, Check, Save, Image as ImageIcon, Type, RefreshCw, Globe, Smile, X, Palette, Radio, Bot, Bell } from 'lucide-react'
-import { getStoreSetting, saveStoreSetting } from '@/lib/admin-db'
+import { Upload, Loader2, Check, Save, Image as ImageIcon, Type, RefreshCw, Globe, Smile, X, Palette, Radio, Bot, Bell, Layers, Plus, Trash2 } from 'lucide-react'
+import { getStoreSetting, saveStoreSetting, getComboTiers, saveComboTiers } from '@/lib/admin-db'
 import { client } from '@/config/client'
 import toast from 'react-hot-toast'
 
@@ -64,6 +64,11 @@ export default function SettingsPage() {
   const [savedAi,      setSavedAi]      = useState(false)
   const [aiKeyMasked,  setAiKeyMasked]  = useState(true)
 
+  // Combo builder tiers
+  const [comboTiers,    setComboTiers]    = useState<{ min_spend: number; discount_pct: number }[]>([])
+  const [savingTiers,   setSavingTiers]   = useState(false)
+  const [savedTiers,    setSavedTiers]    = useState(false)
+
   // Newsletter popup
   const [popupEnabled,  setPopupEnabled]  = useState(true)
   const [popupTitle,    setPopupTitle]    = useState('Get 10% off your first order')
@@ -96,6 +101,7 @@ export default function SettingsPage() {
     getStoreSetting('popup_description').then(v => { if (v) setPopupDesc(v) })
     getStoreSetting('popup_discount_code').then(v => { if (v) setPopupCode(v) })
     getStoreSetting('popup_delay').then(v => { if (v) setPopupDelay(Number(v)) })
+    getComboTiers().then(t => setComboTiers(t))
   }, [])
 
   async function handleFile(file: File) {
@@ -704,6 +710,82 @@ export default function SettingsPage() {
               style={{ backgroundColor: savedAi ? '#16a34a' : ACCENT }}>
               {savedAi ? <><Check size={13} /> Saved</>
                 : savingAi ? <><Save size={13} className="animate-pulse" /> Saving…</>
+                : <><Save size={13} /> Save</>}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Combo Builder Tiers ───────────────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-gray-100 bg-gray-50">
+          <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wide flex items-center gap-2">
+            <Layers size={13} /> Combo Builder Discount Tiers
+          </h3>
+          <p className="text-[10px] text-gray-400 mt-0.5">
+            Set spend thresholds for the customer combo builder. Customers unlock bigger discounts the more they add.
+          </p>
+        </div>
+        <div className="px-5 py-5 space-y-3">
+          {/* Tier rows */}
+          {comboTiers.map((tier, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <div className="flex-1">
+                <label className="block text-[10px] font-semibold text-gray-500 mb-1">Min Spend (₦)</label>
+                <input
+                  type="number"
+                  value={tier.min_spend}
+                  onChange={e => {
+                    const updated = [...comboTiers]
+                    updated[i] = { ...updated[i], min_spend: Number(e.target.value) }
+                    setComboTiers(updated); setSavedTiers(false)
+                  }}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400"
+                />
+              </div>
+              <div className="w-32">
+                <label className="block text-[10px] font-semibold text-gray-500 mb-1">Discount %</label>
+                <input
+                  type="number" min={1} max={90}
+                  value={tier.discount_pct}
+                  onChange={e => {
+                    const updated = [...comboTiers]
+                    updated[i] = { ...updated[i], discount_pct: Number(e.target.value) }
+                    setComboTiers(updated); setSavedTiers(false)
+                  }}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400"
+                />
+              </div>
+              <button
+                onClick={() => { setComboTiers(comboTiers.filter((_, j) => j !== i)); setSavedTiers(false) }}
+                className="mt-5 text-gray-300 hover:text-red-400 transition-colors">
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+
+          <button
+            onClick={() => { setComboTiers([...comboTiers, { min_spend: 0, discount_pct: 5 }]); setSavedTiers(false) }}
+            className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-800 transition-colors">
+            <Plus size={13} /> Add tier
+          </button>
+
+          <div className="flex justify-end pt-1">
+            <button
+              onClick={async () => {
+                setSavingTiers(true)
+                try {
+                  await saveComboTiers(comboTiers)
+                  setSavedTiers(true)
+                  toast.success('Combo tiers saved')
+                } catch { toast.error('Failed to save') }
+                finally { setSavingTiers(false) }
+              }}
+              disabled={savingTiers}
+              className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded-xl text-white hover:opacity-90 disabled:opacity-60"
+              style={{ backgroundColor: savedTiers ? '#16a34a' : ACCENT }}>
+              {savedTiers ? <><Check size={13} /> Saved</>
+                : savingTiers ? <><Save size={13} className="animate-pulse" /> Saving…</>
                 : <><Save size={13} /> Save</>}
             </button>
           </div>
