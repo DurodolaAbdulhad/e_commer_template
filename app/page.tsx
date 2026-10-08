@@ -8,6 +8,7 @@ import FlashDeals from '@/components/home/FlashDeals'
 import FeaturedProducts from '@/components/home/FeaturedProducts'
 import MidPromoBanner from '@/components/home/MidPromoBanner'
 import NewArrivals from '@/components/home/NewArrivals'
+import ComboDeals from '@/components/home/ComboDeals'
 import Newsletter from '@/components/home/Newsletter'
 import WhatsAppButton from '@/components/ui/WhatsAppButton'
 import { createClient, isSupabaseReady } from '@/lib/supabase-server'
@@ -22,6 +23,7 @@ const DEFAULT_SECTIONS: Section[] = [
   { id: 'featured',     visible: true },
   { id: 'promo',        visible: true },
   { id: 'new_arrivals', visible: true },
+  { id: 'combos',       visible: true },
   { id: 'newsletter',   visible: true },
 ]
 
@@ -33,6 +35,7 @@ const SECTION_COMPONENTS: Record<string, React.ComponentType> = {
   featured:     FeaturedProducts,
   promo:        MidPromoBanner,
   new_arrivals: NewArrivals,
+  combos:       ComboDeals,
   newsletter:   Newsletter,
 }
 

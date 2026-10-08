@@ -14,7 +14,7 @@ export default function BundlesPage() {
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState<any | null>(null)
-  const [form, setForm] = useState({ name: '', bundle_price: 0, product_ids: [] as string[], is_active: true })
+  const [form, setForm] = useState({ name: '', description: '', bundle_price: 0, product_ids: [] as string[], is_active: true })
   const [search, setSearch] = useState('')
 
   async function load() {
@@ -27,10 +27,10 @@ export default function BundlesPage() {
   }
   useEffect(() => { load() }, [])
 
-  function openCreate() { setEditing(null); setForm({ name: '', bundle_price: 0, product_ids: [], is_active: true }); setModal(true) }
+  function openCreate() { setEditing(null); setForm({ name: '', description: '', bundle_price: 0, product_ids: [], is_active: true }); setModal(true) }
   function openEdit(b: any) {
     setEditing(b)
-    setForm({ name: b.name, bundle_price: b.bundle_price, product_ids: b.product_ids ?? [], is_active: b.is_active })
+    setForm({ name: b.name, description: b.description ?? '', bundle_price: b.bundle_price, product_ids: b.product_ids ?? [], is_active: b.is_active })
     setModal(true)
   }
 
@@ -130,6 +130,13 @@ export default function BundlesPage() {
               <label className="block text-xs font-medium text-gray-600 mb-1">Bundle Name *</label>
               <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                 placeholder="e.g. Phone + Case + Charger Bundle"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-400" />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Description (optional)</label>
+              <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="e.g. Everything you need to get started"
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-400" />
             </div>
 
