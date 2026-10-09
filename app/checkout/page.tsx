@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
 import PageBox from '@/components/ui/PageBox'
@@ -11,7 +11,7 @@ import { formatPrice, getShippingCost, loadShippingSettings, generateOrderNumber
 import { client } from '@/config/client'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
-import { ChevronRight, Tag, ShieldCheck, Truck, Lock } from 'lucide-react'
+import { ChevronRight, Tag, ShieldCheck, Truck, Lock, MessageCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import CheckoutRecommendations from '@/components/checkout/CheckoutRecommendations'
 import { validateCoupon, redeemGiftCard, evaluateAutoDiscount } from '@/lib/admin-db'
@@ -40,6 +40,7 @@ interface FormData {
 
 export default function CheckoutPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { items, subtotal, itemCount, dispatch, loaded: cartLoaded } = useCart()
   const { user } = useAuth()
   const [form, setForm] = useState<FormData>({
@@ -58,7 +59,9 @@ export default function CheckoutPage() {
   const [loyaltyPoints,    setLoyaltyPoints]    = useState(0)
   const [loyaltyApplied,   setLoyaltyApplied]   = useState(false)
   const [loading,          setLoading]          = useState(false)
-  const [paymentMethod,    setPaymentMethod]    = useState<'online' | 'pod' | 'bank'>('online')
+  const [paymentMethod,    setPaymentMethod]    = useState<'online' | 'pod' | 'bank' | 'whatsapp'>(
+    () => (searchParams.get('method') === 'whatsapp' && client.features?.whatsappOrder && client.whatsapp) ? 'whatsapp' : 'online'
+  )
   const [mounted,          setMounted]          = useState(false)
   const [shippingSettings,    setShippingSettings]    = useState<any>(null)
   const [shipMethod,          setShipMethod]          = useState<'store' | 'self' | 'pickup'>('store')
@@ -556,6 +559,91 @@ export default function CheckoutPage() {
     }
   }
 
+  async function handleWhatsApp() {
+    if ((items as any).length === 0) return toast.error('Your cart is empty')
+    if (!validate()) return
+    if (!client.whatsapp) return toast.error('WhatsApp ordering is not set up. Please contact us.')
+    setLoading(true)
+    const reference = generateOrderNumber()
+    try {
+      if (giftCardApplied && giftCardDiscount > 0) {
+        try { await redeemGiftCard(giftCardApplied, giftCardDiscount) } catch {}
+      }
+      const orderData = {
+        order_number: reference,
+        status: 'pending',
+        items: (items as any[]).map((i: any) => ({
+          id: i.id, name: i.name, price: i.price, quantity: i.quantity,
+          variant: i.variant ?? null, image: i.images?.[0] ?? null,
+        })),
+        subtotal,
+        shipping_cost: merchantShipping,
+        discount: discount + (autoDiscount?.value ?? 0) + giftCardDiscount + wholesaleDiscount + walletDiscount + loyaltyDiscount,
+        vat: vatAmount,
+        total,
+        price_sig: null,
+        address: shipMethod === 'pickup'
+          ? { fullName: form.fullName, email: form.email, phone: form.phone, address: null, city: null, state: null, area: null, country: 'Nigeria', notes: form.notes || null }
+          : { fullName: form.fullName, email: form.email, phone: form.phone, address: form.address, city: form.city, state: form.state, area: form.area || null, country: form.country, notes: form.notes },
+        payment_method: 'whatsapp',
+        payment_reference: reference,
+        coupon_code: couponApplied || null,
+        gift_card_code: giftCardApplied || null,
+        auto_discount: autoDiscount?.name || null,
+        delivery_method: shipMethod === 'self' ? 'self_logistics' : shipMethod === 'pickup' ? 'pickup' : 'store_delivery',
+        pickup_point_id: shipMethod === 'pickup' ? selectedPickupPoint : null,
+        pickup_point_name: shipMethod === 'pickup' ? pickupPoints.find(p => p.id === selectedPickupPoint)?.name ?? null : null,
+      }
+      localStorage.setItem(`order_${reference}`, JSON.stringify({
+        order_number: reference, status: 'pending', total,
+        items: orderData.items, payment_method: 'whatsapp',
+        address: { fullName: form.fullName, email: form.email, phone: form.phone, city: form.city, state: form.state },
+      }))
+      try {
+        const supabase = createClient()
+        await supabase.from('orders').insert(orderData)
+      } catch {}
+
+      // Build WhatsApp message
+      const itemLines = (items as any[]).map((i: any) =>
+        `• ${i.name}${i.variant ? ` (${i.variant})` : ''} × ${i.quantity} — ${formatPrice(i.price * i.quantity)}`
+      ).join('\n')
+      const deliveryAddr = shipMethod === 'pickup'
+        ? `Pickup (${pickupPoints.find(p => p.id === selectedPickupPoint)?.name ?? 'store'})`
+        : `${form.address}, ${form.city}, ${form.state}`
+      const discountTotal = discount + (autoDiscount?.value ?? 0) + giftCardDiscount + wholesaleDiscount + walletDiscount + loyaltyDiscount
+      const msg = [
+        `🛍️ *New Order — ${client.name}*`,
+        `📋 Order No: *${reference}*`,
+        ``,
+        `👤 Name: ${form.fullName}`,
+        `📞 Phone: ${form.phone}`,
+        `✉️ Email: ${form.email}`,
+        ``,
+        `🛒 *Items:*`,
+        itemLines,
+        ``,
+        discountTotal > 0 ? `💸 Discount: -${formatPrice(discountTotal)}` : null,
+        `💰 *Total: ${formatPrice(total)}*`,
+        `📍 Delivery: ${deliveryAddr}`,
+        form.notes ? `📝 Notes: ${form.notes}` : null,
+        ``,
+        `Payment: WhatsApp Order`,
+      ].filter(l => l !== null).join('\n')
+
+      const waNum = client.whatsapp.replace(/\D/g, '')
+      dispatch({ type: 'CLEAR_CART' })
+
+      // Open WhatsApp in a new tab, then navigate to confirmation
+      window.open(`https://wa.me/${waNum}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')
+      router.push(`/order/${reference}`)
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to place order. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   if (itemCount === 0 && mounted && cartLoaded) {
     return (
       <>
@@ -913,10 +1001,10 @@ export default function CheckoutPage() {
                 </div>
 
                 {/* Payment method selector */}
-                {(client.features?.payOnDelivery || client.features?.bankTransfer) && (
+                {(client.features?.payOnDelivery || client.features?.bankTransfer || (client.features?.whatsappOrder && client.whatsapp)) && (
                   <div className="mb-4 space-y-2">
                     <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Payment Method</p>
-                    <div className={`grid gap-2 ${client.features?.bankTransfer ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                    <div className={`grid gap-2 ${[client.features?.payOnDelivery, client.features?.bankTransfer, client.features?.whatsappOrder && client.whatsapp].filter(Boolean).length >= 3 ? 'grid-cols-2' : 'grid-cols-2'}`}>
                       <button type="button" onClick={() => setPaymentMethod('online')}
                         className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-xl border-2 text-xs font-semibold transition-colors"
                         style={{
@@ -951,10 +1039,27 @@ export default function CheckoutPage() {
                           Bank Transfer
                         </button>
                       )}
+                      {client.features?.whatsappOrder && client.whatsapp && (
+                        <button type="button" onClick={() => setPaymentMethod('whatsapp')}
+                          className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-xl border-2 text-xs font-semibold transition-colors"
+                          style={{
+                            borderColor: paymentMethod === 'whatsapp' ? '#16a34a' : '#e5e7eb',
+                            color: paymentMethod === 'whatsapp' ? '#16a34a' : '#6b7280',
+                            backgroundColor: paymentMethod === 'whatsapp' ? '#f0fdf4' : '#fff',
+                          }}>
+                          <MessageCircle size={14} />
+                          WhatsApp
+                        </button>
+                      )}
                     </div>
                     {paymentMethod === 'pod' && (
                       <p className="text-[11px] text-gray-500 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
                         💵 Cash payment collected at delivery. Our team will contact you to confirm.
+                      </p>
+                    )}
+                    {paymentMethod === 'whatsapp' && (
+                      <p className="text-[11px] text-gray-500 bg-green-50 border border-green-100 rounded-lg px-3 py-2">
+                        💬 Your order details will be sent to our WhatsApp. We&apos;ll confirm and arrange payment with you directly.
                       </p>
                     )}
                     {paymentMethod === 'bank' && (client as any).bankTransfer && (
@@ -972,7 +1077,29 @@ export default function CheckoutPage() {
                 )}
 
                 {/* Pay button */}
-                {paymentMethod === 'bank' ? (
+                {paymentMethod === 'whatsapp' ? (
+                  <button
+                    onClick={handleWhatsApp}
+                    disabled={loading}
+                    className="w-full py-3.5 text-white font-bold text-sm rounded-lg flex items-center justify-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-70 disabled:cursor-not-allowed"
+                    style={{ backgroundColor: '#25d366' }}
+                  >
+                    {loading ? (
+                      <>
+                        <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                        </svg>
+                        Placing order...
+                      </>
+                    ) : (
+                      <>
+                        <MessageCircle size={14} />
+                        Order via WhatsApp — {formatPrice(total)}
+                      </>
+                    )}
+                  </button>
+                ) : paymentMethod === 'bank' ? (
                   <button
                     onClick={handleBankTransfer}
                     disabled={loading}
@@ -1041,13 +1168,15 @@ export default function CheckoutPage() {
                 )}
 
                 <p className="text-center text-xs text-gray-400 mt-3">
-                  {paymentMethod === 'pod'
-                    ? 'Order confirmed · Cash collected at your door'
-                    : paymentMethod === 'bank'
-                      ? 'Transfer exact amount · Upload receipt on confirmation page'
-                      : client.paymentGateway === 'flutterwave'
-                        ? 'Secured by Flutterwave · Visa · Mastercard · Verve · USSD'
-                        : 'Secured by Paystack · Visa · Mastercard · Verve'}
+                  {paymentMethod === 'whatsapp'
+                    ? 'Order saved · WhatsApp opens · We confirm payment with you'
+                    : paymentMethod === 'pod'
+                      ? 'Order confirmed · Cash collected at your door'
+                      : paymentMethod === 'bank'
+                        ? 'Transfer exact amount · Upload receipt on confirmation page'
+                        : client.paymentGateway === 'flutterwave'
+                          ? 'Secured by Flutterwave · Visa · Mastercard · Verve · USSD'
+                          : 'Secured by Paystack · Visa · Mastercard · Verve'}
                 </p>
               </div>
             </div>

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { ArrowLeft, MapPin, Phone, Mail, Package } from 'lucide-react'
+import { ArrowLeft, MapPin, Phone, Mail, Package, MessageSquare } from 'lucide-react'
 import { getOrder, updateOrderStatus } from '@/lib/admin-db'
 import { formatPrice } from '@/lib/utils'
 import toast from 'react-hot-toast'
@@ -25,11 +25,14 @@ export default function AdminOrderDetailPage() {
   const [refundAmt,    setRefundAmt]    = useState('')
   const [refunding,    setRefunding]    = useState(false)
   const [refundDone,   setRefundDone]   = useState(false)
+  const [trackingNotes,     setTrackingNotes]     = useState('')
+  const [savingNotes,       setSavingNotes]       = useState(false)
 
   useEffect(() => {
     getOrder(id).then(o => {
       setOrder(o)
       setStatus(o?.status || 'pending')
+      setTrackingNotes(o?.tracking_notes || '')
       setLoading(false)
     })
   }, [id])
@@ -43,6 +46,23 @@ export default function AdminOrderDetailPage() {
       toast.error('Could not update status')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleSaveNotes() {
+    setSavingNotes(true)
+    try {
+      const res = await fetch('/api/admin/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, tracking_notes: trackingNotes }),
+      })
+      if (!res.ok) throw new Error((await res.json()).error)
+      toast.success('Tracking note saved')
+    } catch {
+      toast.error('Could not save note')
+    } finally {
+      setSavingNotes(false)
     }
   }
 
@@ -209,6 +229,34 @@ export default function AdminOrderDetailPage() {
             <Package size={13} />
             View Customer Receipt
           </Link>
+
+          {/* Tracking note */}
+          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <div className="px-4 py-3.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+              <MessageSquare size={12} className="text-gray-500" />
+              <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wide">Tracking Note</h3>
+            </div>
+            <div className="p-4 space-y-3">
+              <p className="text-xs text-gray-500">
+                Visible to the customer on the track order page.
+              </p>
+              <textarea
+                value={trackingNotes}
+                onChange={e => setTrackingNotes(e.target.value)}
+                rows={3}
+                placeholder="e.g. Your order has been dispatched via GIG Logistics, waybill #12345."
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs outline-none text-gray-700 placeholder-gray-400 focus:border-gray-400 resize-none"
+              />
+              <button
+                onClick={handleSaveNotes}
+                disabled={savingNotes}
+                className="w-full py-2 text-xs font-bold text-white rounded-lg disabled:opacity-60 transition-opacity hover:opacity-90"
+                style={{ backgroundColor: ACCENT }}
+              >
+                {savingNotes ? 'Saving…' : 'Save Note'}
+              </button>
+            </div>
+          </div>
 
           {/* Wallet refund */}
           <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">

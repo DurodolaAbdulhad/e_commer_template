@@ -67,14 +67,6 @@ function getTrustBadges(returnPolicy?: string) {
 
 interface Review { id: string; nickname: string; summary: string; body: string; rating: number; date: string }
 
-function loadReviews(productId: string): Review[] {
-  try { return JSON.parse(localStorage.getItem(`reviews_${productId}`) ?? '[]') } catch { return [] }
-}
-function saveReview(productId: string, review: Review) {
-  const existing = loadReviews(productId)
-  localStorage.setItem(`reviews_${productId}`, JSON.stringify([review, ...existing]))
-}
-
 // ── Rating summary bar ──────────────────────────────────────────────────────
 
 function RatingBar({ label, count, total }: { label: string; count: number; total: number }) {
@@ -134,9 +126,17 @@ export default function ProductDetailClient({
   const [reviewSummary,   setReviewSummary]    = useState('')
   const [reviewBody,      setReviewBody]       = useState('')
   const [reviewSubmitted, setReviewSubmitted]  = useState(false)
+  const [reviewPending,   setReviewPending]    = useState(false)
 
   useEffect(() => {
-    setReviews(loadReviews(product.id))
+    fetch(`/api/reviews?productId=${product.id}`)
+      .then(r => r.json())
+      .then(j => setReviews((j.reviews ?? []).map((r: any) => ({
+        id: r.id, nickname: r.nickname, summary: r.summary ?? '',
+        body: r.body, rating: r.rating,
+        date: new Date(r.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }),
+      }))))
+      .catch(() => {})
     // Track recently viewed
     try {
       const all: any[] = JSON.parse(localStorage.getItem('recently_viewed') ?? '[]')
@@ -163,21 +163,33 @@ export default function ProductDetailClient({
     toast.success(`${product.name} added to cart`)
   }
 
-  function submitReview(e: React.FormEvent) {
+  async function submitReview(e: React.FormEvent) {
     e.preventDefault()
     if (!reviewNickname.trim()) return toast.error('Please enter your nickname')
     if (!reviewBody.trim())     return toast.error('Please write your review')
-    const review: Review = {
-      id: Date.now().toString(), nickname: reviewNickname.trim(),
-      summary: reviewSummary.trim(), body: reviewBody.trim(),
-      rating: reviewRating, date: new Date().toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }),
+    setReviewPending(true)
+    try {
+      const res = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: product.id,
+          nickname: reviewNickname.trim(),
+          summary: reviewSummary.trim(),
+          reviewBody: reviewBody.trim(),
+          rating: reviewRating,
+        }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      setReviewSubmitted(true)
+      toast.success('Review submitted! It will appear after moderation.')
+      setReviewNickname(''); setReviewSummary(''); setReviewBody(''); setReviewRating(5)
+      setTimeout(() => setReviewSubmitted(false), 6000)
+    } catch {
+      toast.error('Failed to submit review. Please try again.')
+    } finally {
+      setReviewPending(false)
     }
-    saveReview(product.id, review)
-    setReviews(prev => [review, ...prev])
-    setReviewSubmitted(true)
-    toast.success('Review submitted! Thank you.')
-    setReviewNickname(''); setReviewSummary(''); setReviewBody(''); setReviewRating(5)
-    setTimeout(() => setReviewSubmitted(false), 4000)
   }
 
   function toggleDigitalOption(opt: string) {
@@ -582,7 +594,7 @@ export default function ProductDetailClient({
               {/* Review form */}
               {reviewSubmitted ? (
                 <div className="bg-green-50 border border-green-200 rounded-lg px-5 py-4 text-sm text-green-700 font-medium">
-                  Thank you for your review! It has been submitted successfully.
+                  Thank you! Your review has been submitted and will appear after moderation.
                 </div>
               ) : (
                 <form onSubmit={submitReview} className="bg-gray-50 rounded-xl p-5">
@@ -612,10 +624,10 @@ export default function ProductDetailClient({
                         rows={4} placeholder="Tell others about your experience…"
                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-400 resize-none bg-white" />
                     </div>
-                    <button type="submit"
-                      className="px-6 py-2.5 text-white text-sm font-bold rounded-lg transition-opacity hover:opacity-90"
+                    <button type="submit" disabled={reviewPending}
+                      className="px-6 py-2.5 text-white text-sm font-bold rounded-lg transition-opacity hover:opacity-90 disabled:opacity-60"
                       style={{ backgroundColor: ACCENT }}>
-                      Submit Review
+                      {reviewPending ? 'Submitting…' : 'Submit Review'}
                     </button>
                   </div>
                 </form>

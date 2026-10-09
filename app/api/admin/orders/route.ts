@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminToken } from '@/lib/admin-auth'
 import { getServiceClient, isServiceClientReady } from '@/lib/supabase-service'
+import { sendShippingUpdateSMS } from '@/lib/termii'
+import { client as storeConfig } from '@/config/client'
 
 export async function GET(req: NextRequest) {
   const token = req.cookies.get('admin_token')?.value
@@ -37,22 +39,39 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
   }
 
-  const { id, status } = await req.json().catch(() => ({}))
-  if (!id || !status) return NextResponse.json({ error: 'id and status required' }, { status: 400 })
+  const body = await req.json().catch(() => ({}))
+  const { id, status, tracking_notes } = body
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+  if (!status && tracking_notes === undefined) return NextResponse.json({ error: 'status or tracking_notes required' }, { status: 400 })
 
   const supabase = getServiceClient()
-  const { error } = await supabase.from('orders').update({ status }).eq('id', id)
+
+  // Save tracking notes only
+  if (tracking_notes !== undefined && !status) {
+    const { error } = await supabase.from('orders').update({ tracking_notes }).eq('id', id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true })
+  }
+
+  const updatePayload: Record<string, any> = { status }
+  if (tracking_notes !== undefined) updatePayload.tracking_notes = tracking_notes
+
+  const { error } = await supabase.from('orders').update(updatePayload).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Send status update email for key milestones
+  // Send status update notifications for key milestones
   if (['shipped', 'delivered', 'cancelled'].includes(status)) {
     try {
       const { data: order } = await supabase.from('orders').select('*').eq('id', id).single()
       if (order?.email) {
         await sendStatusEmail(order, status)
       }
+      if (['shipped', 'delivered'].includes(status) && order?.phone && process.env.TERMII_API_KEY) {
+        const orderRef = order.order_number ?? order.payment_reference ?? order.id
+        await sendShippingUpdateSMS(order.phone, orderRef, status, storeConfig.name)
+      }
     } catch (e) {
-      console.error('[orders PATCH] email error:', e)
+      console.error('[orders PATCH] notification error:', (e as any)?.message?.slice(0, 200))
     }
   }
 

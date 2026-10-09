@@ -19,17 +19,22 @@ export function AdminProvider({ children }) {
     setLoading(false)
   }, [])
 
-  const signIn = useCallback(async (password) => {
+  const signIn = useCallback(async (password, email) => {
+    const body = email
+      ? { email, password }
+      : { password }
+
     const res = await fetch('/api/admin/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify(body),
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
-      throw new Error(err.error || 'Incorrect password')
+      throw new Error(err.error || 'Incorrect credentials')
     }
-    const session = { role: 'admin', loggedInAt: new Date().toISOString() }
+    const data    = await res.json()
+    const session = { role: data.role ?? 'admin', loggedInAt: new Date().toISOString() }
     localStorage.setItem(ADMIN_KEY, JSON.stringify(session))
     setAdmin(session)
     return session

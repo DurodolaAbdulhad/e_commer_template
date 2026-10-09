@@ -6,8 +6,9 @@ import Footer from '@/components/layout/Footer'
 import PageBox from '@/components/ui/PageBox'
 import CartItem from '@/components/cart/CartItem'
 import Link from 'next/link'
-import { ShoppingBag, ArrowLeft } from 'lucide-react'
+import { ShoppingBag, ArrowLeft, MessageCircle } from 'lucide-react'
 import { formatPrice } from '@/lib/utils'
+import { client } from '@/config/client'
 
 export default function CartPage() {
   const { items, subtotal, itemCount, loaded: cartLoaded } = useCart()
@@ -106,6 +107,18 @@ export default function CartPage() {
                 >
                   Proceed to Checkout
                 </Link>
+
+                {/* WhatsApp quick order */}
+                {client.features?.whatsappOrder && client.whatsapp && (
+                  <Link
+                    href="/checkout?method=whatsapp"
+                    className="mt-2 flex items-center justify-center gap-2 w-full py-3 rounded font-semibold text-sm text-white transition-opacity hover:opacity-90"
+                    style={{ backgroundColor: '#25d366' }}
+                  >
+                    <MessageCircle size={15} />
+                    Order via WhatsApp
+                  </Link>
+                )}
 
                 {/* Trust badges */}
                 <div className="mt-4 pt-4 border-t border-gray-100 space-y-1.5">

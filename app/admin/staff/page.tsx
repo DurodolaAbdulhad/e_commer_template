@@ -1,16 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getAdminUsers, createAdminUser, updateAdminUser, deleteAdminUser } from '@/lib/admin-db'
-import { Users, Plus, Trash2, Edit2, X } from 'lucide-react'
+import { Users, Plus, Trash2, Edit2, X, KeyRound, Eye, EyeOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const ACCENT = '#e84c3d'
 
 const ROLES = [
   { value: 'admin',   label: 'Admin',   desc: 'Full access — products, orders, settings, staff management' },
-  { value: 'manager', label: 'Manager', desc: 'Products, orders, coupons, blog — cannot manage staff or settings' },
-  { value: 'viewer',  label: 'Viewer',  desc: 'Read-only access to orders and analytics dashboard' },
+  { value: 'manager', label: 'Manager', desc: 'Products, orders, coupons, blog, reviews — no staff or settings' },
+  { value: 'viewer',  label: 'Viewer',  desc: 'Read-only access to orders and analytics' },
 ]
 
 const ROLE_STYLES: Record<string, string> = {
@@ -20,39 +19,81 @@ const ROLE_STYLES: Record<string, string> = {
 }
 
 export default function StaffPage() {
-  const [users, setUsers] = useState<any[]>([])
+  const [users,   setUsers]   = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [modal, setModal] = useState(false)
+
+  // Edit/create modal
+  const [modal,   setModal]   = useState(false)
   const [editing, setEditing] = useState<any | null>(null)
-  const [form, setForm] = useState({ name: '', email: '', role: 'manager', is_active: true })
+  const [form,    setForm]    = useState({ name: '', email: '', role: 'manager', is_active: true })
+
+  // Set-password modal
+  const [pwdModal,    setPwdModal]    = useState(false)
+  const [pwdUser,     setPwdUser]     = useState<any | null>(null)
+  const [newPassword, setNewPassword] = useState('')
+  const [showPwd,     setShowPwd]     = useState(false)
+  const [pwdSaving,   setPwdSaving]   = useState(false)
 
   async function load() {
     setLoading(true)
-    try { setUsers(await getAdminUsers()) } catch {}
+    try {
+      const res  = await fetch('/api/admin/staff')
+      const json = await res.json()
+      setUsers(json.users ?? [])
+    } catch {}
     setLoading(false)
   }
   useEffect(() => { load() }, [])
 
   function openCreate() { setEditing(null); setForm({ name: '', email: '', role: 'manager', is_active: true }); setModal(true) }
   function openEdit(u: any) { setEditing(u); setForm({ name: u.name, email: u.email, role: u.role, is_active: u.is_active }); setModal(true) }
+  function openPwd(u: any) { setPwdUser(u); setNewPassword(''); setShowPwd(false); setPwdModal(true) }
 
   async function handleSave() {
     if (!form.name.trim() || !form.email.trim()) { toast.error('Name and email are required'); return }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { toast.error('Invalid email'); return }
     try {
-      if (editing) await updateAdminUser(editing.id, form)
-      else await createAdminUser(form)
+      const res = await fetch('/api/admin/staff', {
+        method: editing ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editing ? { id: editing.id, ...form } : form),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
       toast.success(editing ? 'Updated' : 'Staff member added')
       setModal(false); load()
-    } catch { toast.error('Failed to save') }
+    } catch (e: any) { toast.error(e?.message ?? 'Failed to save') }
   }
 
   async function handleDelete(u: any) {
-    if (u.role === 'admin' && users.filter(x => x.role === 'admin').length === 1) {
-      toast.error('Cannot delete the last admin account'); return
-    }
     if (!confirm(`Remove ${u.name} from staff?`)) return
-    try { await deleteAdminUser(u.id); toast.success('Removed'); load() } catch { toast.error('Failed') }
+    try {
+      const res  = await fetch('/api/admin/staff', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: u.id }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      toast.success('Removed'); load()
+    } catch (e: any) { toast.error(e?.message ?? 'Failed') }
+  }
+
+  async function handleSetPassword() {
+    if (!newPassword || newPassword.length < 8) { toast.error('Password must be at least 8 characters'); return }
+    setPwdSaving(true)
+    try {
+      const res  = await fetch('/api/admin/staff', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: pwdUser.id, password: newPassword }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      toast.success('Password set successfully')
+      setPwdModal(false)
+    } catch (e: any) { toast.error(e?.message ?? 'Failed') }
+    finally { setPwdSaving(false) }
   }
 
   return (
@@ -84,15 +125,15 @@ export default function StaffPage() {
         ) : users.length === 0 ? (
           <div className="py-16 text-center">
             <Users size={32} className="text-gray-200 mx-auto mb-3" />
-            <p className="text-sm text-gray-400">No staff members yet.</p>
+            <p className="text-sm text-gray-400">No staff members yet. Add one above.</p>
           </div>
         ) : (
           <div>
-            <div className="grid grid-cols-[1fr_200px_90px_80px_60px] gap-3 px-5 py-3 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            <div className="hidden md:grid grid-cols-[1fr_200px_90px_80px_100px] gap-3 px-5 py-3 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
               <span>Name</span><span>Email</span><span>Role</span><span>Status</span><span></span>
             </div>
             {users.map(u => (
-              <div key={u.id} className="grid grid-cols-[1fr_200px_90px_80px_60px] gap-3 items-center px-5 py-3.5 border-b border-gray-50 last:border-0 hover:bg-gray-50">
+              <div key={u.id} className="grid grid-cols-1 md:grid-cols-[1fr_200px_90px_80px_100px] gap-3 items-center px-5 py-3.5 border-b border-gray-50 last:border-0 hover:bg-gray-50">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500 shrink-0">
                     {u.name?.charAt(0)?.toUpperCase() ?? '?'}
@@ -107,6 +148,7 @@ export default function StaffPage() {
                   {u.is_active ? 'Active' : 'Inactive'}
                 </span>
                 <div className="flex items-center gap-1.5">
+                  <button onClick={() => openPwd(u)} title="Set Password" className="text-gray-300 hover:text-blue-500 transition-colors"><KeyRound size={14} /></button>
                   <button onClick={() => openEdit(u)} className="text-gray-400 hover:text-blue-600 transition-colors"><Edit2 size={14} /></button>
                   <button onClick={() => handleDelete(u)} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
                 </div>
@@ -116,6 +158,7 @@ export default function StaffPage() {
         )}
       </div>
 
+      {/* Edit/Create modal */}
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setModal(false)}>
           <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4" onClick={e => e.stopPropagation()}>
@@ -133,8 +176,8 @@ export default function StaffPage() {
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
                 <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                  placeholder="staff@mystore.com"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-400" />
+                  placeholder="staff@mystore.com" disabled={!!editing}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-400 disabled:bg-gray-50 disabled:text-gray-400" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
@@ -149,12 +192,44 @@ export default function StaffPage() {
               </label>
             </div>
             <p className="text-xs text-gray-400 bg-gray-50 rounded-lg p-3">
-              Staff members receive an invite email (when Supabase Auth is active). In demo mode, roles are stored locally and enforced via middleware when you add a JWT check.
+              After adding, use the 🔑 key icon to set their login password so they can sign in under Staff Login.
             </p>
             <div className="flex gap-2 pt-2">
               <button onClick={() => setModal(false)} className="flex-1 py-2.5 text-sm font-semibold border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
               <button onClick={handleSave} className="flex-1 py-2.5 text-sm font-bold text-white rounded-lg transition-opacity hover:opacity-90" style={{ backgroundColor: ACCENT }}>
                 {editing ? 'Save Changes' : 'Add Member'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Set password modal */}
+      {pwdModal && pwdUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setPwdModal(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-gray-800">Set Password</h2>
+              <button onClick={() => setPwdModal(false)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <p className="text-sm text-gray-500">Setting login password for <strong>{pwdUser.name}</strong> ({pwdUser.email})</p>
+            <div className="relative">
+              <input type={showPwd ? 'text' : 'password'}
+                value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                placeholder="Minimum 8 characters" autoFocus
+                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 pr-10 text-sm outline-none focus:border-gray-400" />
+              <button type="button" onClick={() => setShowPwd(p => !p)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
+                {showPwd ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+            </div>
+            <p className="text-xs text-gray-400">Staff can then sign in using the Staff Login tab with their email and this password.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setPwdModal(false)} className="flex-1 py-2.5 text-sm font-semibold border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
+              <button onClick={handleSetPassword} disabled={pwdSaving || newPassword.length < 8}
+                className="flex-1 py-2.5 text-sm font-bold text-white rounded-lg transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{ backgroundColor: ACCENT }}>
+                {pwdSaving ? 'Saving…' : 'Set Password'}
               </button>
             </div>
           </div>

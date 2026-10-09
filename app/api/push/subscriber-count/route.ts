@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminToken } from '@/lib/admin-auth'
-import { getServiceClient } from '@/lib/supabase-server'
+import { getServiceClient } from '@/lib/supabase-service'
 
 export async function GET(req: NextRequest) {
   const token = req.cookies.get('admin_token')?.value ?? ''

@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabase
     .from('orders')
-    .select('id, order_number, status, created_at, items, total, shipping_address, address')
+    .select('id, order_number, status, created_at, updated_at, items, total, shipping_address, address, payment_method, receipt_url, tracking_notes')
     .eq('order_number', orderNumber.trim().toUpperCase())
     .eq('email', email.trim().toLowerCase())
     .maybeSingle()
@@ -34,7 +34,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ order: null }, { status: 404 })
   }
 
-  // Normalise — address column name varies by store version
   const shippingAddress = data.shipping_address ?? data.address ?? null
 
   return NextResponse.json({
@@ -43,9 +42,13 @@ export async function POST(req: NextRequest) {
       order_number:     data.order_number,
       status:           data.status,
       created_at:       data.created_at,
+      updated_at:       data.updated_at,
       items:            data.items ?? [],
       total:            data.total,
       shipping_address: shippingAddress,
+      payment_method:   data.payment_method ?? 'online',
+      receipt_url:      data.receipt_url ?? null,
+      tracking_notes:   data.tracking_notes ?? null,
     },
   })
 }

@@ -1,19 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import webpush from 'web-push'
 import { verifyAdminToken } from '@/lib/admin-auth'
-import { getServiceClient } from '@/lib/supabase-server'
-
-webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT || 'mailto:admin@store.com',
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!,
-)
+import { getServiceClient } from '@/lib/supabase-service'
 
 export async function POST(req: NextRequest) {
   const token = req.cookies.get('admin_token')?.value ?? ''
   if (!verifyAdminToken(token)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  const vapidPublic  = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+  const vapidPrivate = process.env.VAPID_PRIVATE_KEY
+  if (!vapidPublic || !vapidPrivate) {
+    return NextResponse.json({ error: 'Push notifications not configured' }, { status: 503 })
+  }
+  webpush.setVapidDetails(
+    process.env.VAPID_SUBJECT || 'mailto:admin@store.com',
+    vapidPublic,
+    vapidPrivate,
+  )
 
   try {
     const { title, body, url, icon, image } = await req.json()

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Package, ShoppingBag, Tag, Image, Users,
   Settings, LogOut, ExternalLink, ChevronRight, ChevronDown, Mail, FileText, Ticket, Bell,
-  Zap, Gift, Layers, RotateCcw, FileEdit, ShoppingCart, UserCog, UserCheck, LayoutList, SlidersHorizontal, Truck, BarChart2,
+  Zap, Gift, Layers, RotateCcw, FileEdit, ShoppingCart, UserCog, UserCheck, LayoutList, SlidersHorizontal, Truck, BarChart2, Star,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useAdmin } from '@/hooks/useAdmin'
@@ -15,43 +15,47 @@ import toast from 'react-hot-toast'
 const NAVY   = '#1a2638'
 const ACCENT = '#e84c3d'
 
+const ROLE_RANK: Record<string, number> = { admin: 3, manager: 2, viewer: 1 }
+
 type NavItem = {
   href: string
   label: string
   icon: React.ElementType
   badge?: number
+  minRole?: 'admin' | 'manager' | 'viewer'
   children?: { href: string; label: string }[]
 }
 
 const NAV: NavItem[] = [
-  { href: '/admin',             label: 'Dashboard',   icon: LayoutDashboard },
-  { href: '/admin/products',    label: 'Products',    icon: Package,
+  { href: '/admin',             label: 'Dashboard',           icon: LayoutDashboard },
+  { href: '/admin/products',    label: 'Products',            icon: Package,          minRole: 'manager',
     children: [
       { href: '/admin/products',      label: 'All Products' },
       { href: '/admin/products/new',  label: 'Add New'      },
       { href: '/admin/products/bulk', label: 'Bulk Edit'    },
     ] },
-  { href: '/admin/orders',           label: 'Orders',          icon: ShoppingBag },
-  { href: '/admin/customers',        label: 'Customers',       icon: UserCheck },
-  { href: '/admin/draft-orders',     label: 'Draft Orders',    icon: FileEdit },
-  { href: '/admin/returns',          label: 'Returns',         icon: RotateCcw },
-  { href: '/admin/categories',       label: 'Categories',      icon: Tag },
-  { href: '/admin/collections',      label: 'Collections',     icon: Layers },
-  { href: '/admin/bundles',          label: 'Bundles',         icon: Package },
-  { href: '/admin/homepage',         label: 'Homepage Layout', icon: LayoutList },
-  { href: '/admin/shipping',         label: 'Shipping & Fulfillment', icon: Truck },
-  { href: '/admin/banners',          label: 'Banners',         icon: Image },
-  { href: '/admin/coupons',          label: 'Coupons',         icon: Ticket },
-  { href: '/admin/auto-discounts',   label: 'Auto-Discounts',  icon: Zap },
-  { href: '/admin/gift-cards',       label: 'Gift Cards',      icon: Gift },
-  { href: '/admin/subscribers',      label: 'Subscribers',     icon: Mail },
-  { href: '/admin/abandoned-carts',  label: 'Abandoned Carts', icon: ShoppingCart },
-  { href: '/admin/back-in-stock',    label: 'Back-in-Stock',   icon: Bell },
-  { href: '/admin/push',             label: 'Push Notifications', icon: Bell },
-  { href: '/admin/staff',            label: 'Staff & Roles',   icon: UserCog },
-  { href: '/admin/blog',             label: 'Blog Posts',      icon: FileText },
-  { href: '/admin/pages',            label: 'Pages Editor',    icon: FileText },
-  { href: '/admin/analytics',        label: 'Analytics',       icon: BarChart2 },
+  { href: '/admin/orders',           label: 'Orders',               icon: ShoppingBag },
+  { href: '/admin/customers',        label: 'Customers',            icon: UserCheck,    minRole: 'manager' },
+  { href: '/admin/draft-orders',     label: 'Draft Orders',         icon: FileEdit,     minRole: 'manager' },
+  { href: '/admin/returns',          label: 'Returns',              icon: RotateCcw,    minRole: 'manager' },
+  { href: '/admin/categories',       label: 'Categories',           icon: Tag,          minRole: 'manager' },
+  { href: '/admin/collections',      label: 'Collections',          icon: Layers,       minRole: 'manager' },
+  { href: '/admin/bundles',          label: 'Bundles',              icon: Package,      minRole: 'manager' },
+  { href: '/admin/homepage',         label: 'Homepage Layout',      icon: LayoutList,   minRole: 'manager' },
+  { href: '/admin/shipping',         label: 'Shipping & Fulfillment', icon: Truck,      minRole: 'manager' },
+  { href: '/admin/banners',          label: 'Banners',              icon: Image,        minRole: 'manager' },
+  { href: '/admin/coupons',          label: 'Coupons',              icon: Ticket,       minRole: 'manager' },
+  { href: '/admin/auto-discounts',   label: 'Auto-Discounts',       icon: Zap,          minRole: 'manager' },
+  { href: '/admin/gift-cards',       label: 'Gift Cards',           icon: Gift,         minRole: 'manager' },
+  { href: '/admin/reviews',          label: 'Reviews',              icon: Star,         minRole: 'manager' },
+  { href: '/admin/subscribers',      label: 'Subscribers',          icon: Mail,         minRole: 'manager' },
+  { href: '/admin/abandoned-carts',  label: 'Abandoned Carts',      icon: ShoppingCart, minRole: 'manager' },
+  { href: '/admin/back-in-stock',    label: 'Back-in-Stock',        icon: Bell,         minRole: 'manager' },
+  { href: '/admin/push',             label: 'Push Notifications',   icon: Bell,         minRole: 'manager' },
+  { href: '/admin/staff',            label: 'Staff & Roles',        icon: UserCog,      minRole: 'admin'   },
+  { href: '/admin/blog',             label: 'Blog Posts',           icon: FileText,     minRole: 'manager' },
+  { href: '/admin/pages',            label: 'Pages Editor',         icon: FileText,     minRole: 'manager' },
+  { href: '/admin/analytics',        label: 'Analytics',            icon: BarChart2 },
 ]
 
 function NavLink({ item, depth = 0 }: { item: NavItem; depth?: number }) {
@@ -114,7 +118,10 @@ function NavLink({ item, depth = 0 }: { item: NavItem; depth?: number }) {
 
 export default function AdminSidebar() {
   const router = useRouter()
-  const { signOut } = useAdmin()
+  const { admin, signOut } = useAdmin()
+  const role      = admin?.role ?? 'admin'
+  const roleRank  = ROLE_RANK[role] ?? 3
+  const visibleNav = NAV.filter(item => roleRank >= (ROLE_RANK[item.minRole ?? 'viewer'] ?? 1))
 
   async function handleSignOut() {
     signOut()
@@ -149,12 +156,23 @@ export default function AdminSidebar() {
         <p className="px-4 py-2 text-[9px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.25)' }}>
           Main Menu
         </p>
-        {NAV.map(item => <NavLink key={item.href} item={item} />)}
+        {visibleNav.map(item => <NavLink key={item.href} item={item} />)}
       </nav>
 
       {/* Bottom */}
       <div className="py-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
-        <NavLink item={{ href: '/admin/settings', label: 'Store Settings', icon: SlidersHorizontal }} />
+        {role && (
+          <div className="px-4 py-1.5 mb-1">
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+              role === 'admin' ? 'bg-red-500/20 text-red-300' :
+              role === 'manager' ? 'bg-blue-500/20 text-blue-300' :
+              'bg-white/10 text-white/50'
+            }`}>{role}</span>
+          </div>
+        )}
+        {roleRank >= 3 && (
+          <NavLink item={{ href: '/admin/settings', label: 'Store Settings', icon: SlidersHorizontal }} />
+        )}
         <Link href="/" target="_blank"
           className="flex items-center gap-3 px-4 py-2.5 text-xs transition-colors"
           style={{ color: 'rgba(255,255,255,0.45)' }}>

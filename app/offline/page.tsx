@@ -1,3 +1,5 @@
+'use client'
+
 import Link from 'next/link'
 import { WifiOff, ShoppingBag } from 'lucide-react'
 import { client } from '@/config/client'

@@ -98,7 +98,7 @@ export const client = {
     giftCards: true,
     bundles: true,
     abandonedCart: true,
-    smsNotifications: false,
+    smsNotifications: true,
     loyalty: true,
     payOnDelivery: true,
     bankTransfer: true,
