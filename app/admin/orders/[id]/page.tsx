@@ -4,10 +4,16 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { ArrowLeft, MapPin, Phone, Mail, Package, MessageSquare } from 'lucide-react'
+import { ArrowLeft, MapPin, Phone, Mail, Package, MessageSquare, Truck } from 'lucide-react'
 import { getOrder, updateOrderStatus } from '@/lib/admin-db'
 import { formatPrice } from '@/lib/utils'
 import toast from 'react-hot-toast'
+
+const SHIPPING_PROVIDERS = [
+  { id: 'sendbox', label: 'Sendbox', envKey: 'SENDBOX_API_KEY' },
+  { id: 'gig',     label: 'GIG Logistics' },
+  { id: 'kwik',    label: 'Kwik' },
+]
 
 const ACCENT = '#e84c3d'
 const STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled']
@@ -27,12 +33,17 @@ export default function AdminOrderDetailPage() {
   const [refundDone,   setRefundDone]   = useState(false)
   const [trackingNotes,     setTrackingNotes]     = useState('')
   const [savingNotes,       setSavingNotes]       = useState(false)
+  const [shipProvider,      setShipProvider]      = useState('sendbox')
+  const [shipWeight,        setShipWeight]        = useState('1')
+  const [booking,           setBooking]           = useState(false)
+  const [waybill,           setWaybill]           = useState<{ number: string; url?: string } | null>(null)
 
   useEffect(() => {
     getOrder(id).then(o => {
       setOrder(o)
       setStatus(o?.status || 'pending')
       setTrackingNotes(o?.tracking_notes || '')
+      if (o?.waybill_number) setWaybill({ number: o.waybill_number, url: o.tracking_url })
       setLoading(false)
     })
   }, [id])
@@ -63,6 +74,54 @@ export default function AdminOrderDetailPage() {
       toast.error('Could not save note')
     } finally {
       setSavingNotes(false)
+    }
+  }
+
+  async function handleBookShipment() {
+    const addr = order?.address ?? {}
+    if (!addr.address) { toast.error('No delivery address on this order'); return }
+    setBooking(true)
+    try {
+      const origin = {
+        name:    order?.business_name ?? 'Store',
+        phone:   process.env.NEXT_PUBLIC_STORE_PHONE ?? '08000000000',
+        address: process.env.NEXT_PUBLIC_STORE_ADDRESS ?? 'Lagos, Nigeria',
+        city:    process.env.NEXT_PUBLIC_STORE_CITY    ?? 'Lagos',
+        state:   process.env.NEXT_PUBLIC_STORE_STATE   ?? 'Lagos',
+      }
+      const destination = {
+        name:    addr.fullName || [addr.firstName, addr.lastName].filter(Boolean).join(' ') || 'Customer',
+        phone:   addr.phone || order?.phone || '',
+        email:   addr.email || order?.email || '',
+        address: addr.address,
+        city:    addr.city  || '',
+        state:   addr.state || '',
+      }
+      const res = await fetch('/api/shipping/book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider:    shipProvider,
+          orderId:     order.id,
+          orderRef:    order.payment_reference || order.order_number || order.id,
+          origin,
+          destination,
+          package: {
+            weight:      parseFloat(shipWeight) || 1,
+            description: (order.items ?? []).map((i: any) => i.name).join(', '),
+            value:       order.total ?? 0,
+          },
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Booking failed')
+      setWaybill({ number: data.booking.waybillNumber, url: data.booking.trackingUrl })
+      setStatus('shipped')
+      toast.success(`Waybill created: ${data.booking.waybillNumber}`)
+    } catch (e: any) {
+      toast.error(e.message || 'Could not book shipment')
+    } finally {
+      setBooking(false)
     }
   }
 
@@ -260,6 +319,60 @@ export default function AdminOrderDetailPage() {
               >
                 {savingNotes ? 'Saving…' : 'Save Note'}
               </button>
+            </div>
+          </div>
+
+          {/* Book Shipment */}
+          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <div className="px-4 py-3.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+              <Truck size={12} className="text-gray-500" />
+              <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wide">Book Shipment</h3>
+            </div>
+            <div className="p-4 space-y-3">
+              {waybill ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                    <Truck size={12} />
+                    Waybill: <span className="font-bold">{waybill.number}</span>
+                  </div>
+                  {waybill.url && (
+                    <a href={waybill.url} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-1.5 w-full py-2 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors">
+                      Track Shipment →
+                    </a>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs text-gray-500">Create a waybill via a 3PL provider and mark order as shipped.</p>
+                  <select
+                    value={shipProvider}
+                    onChange={e => setShipProvider(e.target.value)}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs outline-none text-gray-700 bg-white focus:border-gray-400"
+                  >
+                    {SHIPPING_PROVIDERS.map(p => (
+                      <option key={p.id} value={p.id}>{p.label}</option>
+                    ))}
+                  </select>
+                  <div className="flex gap-2 items-center">
+                    <label className="text-xs text-gray-500 whitespace-nowrap">Weight (kg)</label>
+                    <input
+                      type="number" min="0.1" step="0.1"
+                      value={shipWeight}
+                      onChange={e => setShipWeight(e.target.value)}
+                      className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-xs outline-none text-gray-700 focus:border-gray-400"
+                    />
+                  </div>
+                  <button
+                    onClick={handleBookShipment}
+                    disabled={booking}
+                    className="w-full py-2 text-xs font-bold text-white rounded-lg disabled:opacity-60 transition-opacity hover:opacity-90"
+                    style={{ backgroundColor: '#7c3aed' }}
+                  >
+                    {booking ? 'Booking…' : 'Create Waybill'}
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
