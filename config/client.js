@@ -1,20 +1,19 @@
 export const client = {
-  name: "Mynnat Luxe Collections",
-  tagline: "Luxury that speaks before you do",
+  name: "Tracy Boutique",
+  tagline: "Your Dream Look, Delivered",
   industry: "fashion",
-  logo: "/assets/mynnat-logo.png",
-  logoHeight: 56,
-  headerBg: "#000000",
+  logo: "",
+  logoHeight: 44,
   favicon: "/assets/favicon.ico",
-  shopByLabel: "Shop By Category",
+  shopByLabel: "Shop By Department",
 
   colors: {
-    primary: "#222222",
-    secondary: "#22C55E",
-    accent: "#F5A623",
+    primary: "#2D1B3D",        // deep plum — bridal elegance
+    secondary: "#C9A96E",      // champagne gold — celebration
+    accent: "#F5E6F0",         // blush pink — romance
     background: "#FFFFFF",
-    text: "#333333",
-    textLight: "#777777",
+    text: "#1A1A1A",
+    textLight: "#6B6B6B",
   },
 
   fonts: {
@@ -24,16 +23,25 @@ export const client = {
 
   currency: "NGN",
   currencySymbol: "₦",
-  phone: "+234 815 304 0557",
-  email: "Mynnatapparels@gmail.com",
-  address: "Nob-oluwa Street Ogba Lagos",
-  whatsapp: "2348153040557",
+  phone: "",
+  email: "hello@tracyboutique.com",
+  address: "Lagos, Nigeria",
+  whatsapp: "",
 
   shipping: {
-    flatRate: 2500,
-    freeAbove: 50000,
-    estimatedDays: "2–5 business days",
+    flatRate: 3500,
+    freeAbove: 100000,
+    estimatedDays: "3–7 business days",
   },
+
+  pickupPoints: [
+    {
+      id:      'lagos',
+      name:    'Lagos Showroom',
+      address: 'Lagos, Nigeria',
+      hours:   'Mon – Sat: 10 am – 7 pm',
+    },
+  ],
 
   tax: {
     enabled: false,
@@ -45,7 +53,7 @@ export const client = {
   wholesale: {
     enabled: false,
     tag: "wholesale",
-    discountPercent: 15,
+    discountPercent: 10,
   },
 
   socials: {
@@ -56,18 +64,25 @@ export const client = {
   },
 
   seo: {
-    title: "Mynnat Luxe Collections — Luxury that speaks before you do",
-    description: "Premium luxury fashion accessories — Ogba, Ikeja, Lagos. Shop belts, perfumes, eyewear, jewellery and more.",
+    title: "Tracy Boutique — Bridal & Fashion in Lagos",
+    description: "Your dream look, delivered. Shop bridal gowns, accessories, and occasion wear.",
     ogImage: "/opengraph-image",
   },
 
   tracking: {
     metaPixelId: "",
     googleTagId: "",
-    termiiSenderId: "",
+    termiiSenderId: "TracyBtq",
   },
 
   paymentGateway: "paystack",
+
+  loyalty: {
+    enabled: true,
+    pointsPerHundredNaira: 1,
+    nairaPerPoint: 1,
+    minRedeemPoints: 100,
+  },
 
   features: {
     wishlist: true,
@@ -84,5 +99,7 @@ export const client = {
     bundles: true,
     abandonedCart: true,
     smsNotifications: false,
+    loyalty: true,
+    payOnDelivery: true,
   },
 }

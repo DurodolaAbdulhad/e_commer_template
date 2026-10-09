@@ -132,7 +132,12 @@ export default function AdminOrdersPage() {
             return (
               <div key={order.id || ref} className="grid grid-cols-1 md:grid-cols-[1fr_150px_80px_120px_120px_36px] gap-3 items-center px-5 py-3.5 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors group">
                 <div>
-                  <p className="text-sm font-semibold text-gray-700">{ref}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-gray-700">{ref}</p>
+                    {order.payment_method === 'pay_on_delivery' && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 uppercase tracking-wide">POD</span>
+                    )}
+                  </div>
                   <p className="text-xs text-gray-400 mt-0.5">{date}</p>
                 </div>
                 <p className="text-xs text-gray-600 truncate">{order.email || order.customer_email || order.contact?.email || 'Guest'}</p>
