@@ -101,5 +101,13 @@ export const client = {
     smsNotifications: false,
     loyalty: true,
     payOnDelivery: true,
+    bankTransfer: true,
+  },
+
+  bankTransfer: {
+    bankName: 'GTBank',
+    accountName: 'Store Account Name',
+    accountNumber: '0123456789',
+    instructions: 'Transfer the exact amount shown. Send your receipt after payment.',
   },
 }

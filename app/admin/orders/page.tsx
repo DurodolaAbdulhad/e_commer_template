@@ -137,6 +137,9 @@ export default function AdminOrdersPage() {
                     {order.payment_method === 'pay_on_delivery' && (
                       <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 uppercase tracking-wide">POD</span>
                     )}
+                    {order.payment_method === 'bank_transfer' && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 uppercase tracking-wide">Bank</span>
+                    )}
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5">{date}</p>
                 </div>

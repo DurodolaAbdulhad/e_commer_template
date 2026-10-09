@@ -58,7 +58,7 @@ export default function CheckoutPage() {
   const [loyaltyPoints,    setLoyaltyPoints]    = useState(0)
   const [loyaltyApplied,   setLoyaltyApplied]   = useState(false)
   const [loading,          setLoading]          = useState(false)
-  const [paymentMethod,    setPaymentMethod]    = useState<'online' | 'pod'>('online')
+  const [paymentMethod,    setPaymentMethod]    = useState<'online' | 'pod' | 'bank'>('online')
   const [mounted,          setMounted]          = useState(false)
   const [shippingSettings,    setShippingSettings]    = useState<any>(null)
   const [shipMethod,          setShipMethod]          = useState<'store' | 'self' | 'pickup'>('store')
@@ -428,8 +428,11 @@ export default function CheckoutPage() {
       status: orderData.status,
       total: orderData.total,
       items: orderData.items,
+      payment_method: orderData.payment_method,
       address: {
         fullName: orderData.address.fullName,
+        email: orderData.address.email,
+        phone: orderData.address.phone,
         city: orderData.address.city,
         state: orderData.address.state,
       },
@@ -485,8 +488,60 @@ export default function CheckoutPage() {
       }
       localStorage.setItem(`order_${reference}`, JSON.stringify({
         order_number: reference, status: 'pending', total,
-        items: orderData.items,
-        address: { fullName: form.fullName, city: form.city, state: form.state },
+        items: orderData.items, payment_method: 'pay_on_delivery',
+        address: { fullName: form.fullName, email: form.email, phone: form.phone, city: form.city, state: form.state },
+      }))
+      try {
+        const supabase = createClient()
+        await supabase.from('orders').insert(orderData)
+      } catch {}
+      dispatch({ type: 'CLEAR_CART' })
+      router.push(`/order/${reference}`)
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to place order. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleBankTransfer() {
+    if ((items as any).length === 0) return toast.error('Your cart is empty')
+    if (!validate()) return
+    setLoading(true)
+    const reference = generateOrderNumber()
+    try {
+      if (giftCardApplied && giftCardDiscount > 0) {
+        try { await redeemGiftCard(giftCardApplied, giftCardDiscount) } catch {}
+      }
+      const orderData = {
+        order_number: reference,
+        status: 'pending_payment',
+        items: (items as any[]).map((i: any) => ({
+          id: i.id, name: i.name, price: i.price, quantity: i.quantity,
+          variant: i.variant ?? null, image: i.images?.[0] ?? null,
+        })),
+        subtotal,
+        shipping_cost: merchantShipping,
+        discount: discount + (autoDiscount?.value ?? 0) + giftCardDiscount + wholesaleDiscount + walletDiscount + loyaltyDiscount,
+        vat: vatAmount,
+        total,
+        price_sig: null,
+        address: shipMethod === 'pickup'
+          ? { fullName: form.fullName, email: form.email, phone: form.phone, address: null, city: null, state: null, area: null, country: 'Nigeria', notes: form.notes || null }
+          : { fullName: form.fullName, email: form.email, phone: form.phone, address: form.address, city: form.city, state: form.state, area: form.area || null, country: form.country, notes: form.notes },
+        payment_method: 'bank_transfer',
+        payment_reference: reference,
+        coupon_code: couponApplied || null,
+        gift_card_code: giftCardApplied || null,
+        auto_discount: autoDiscount?.name || null,
+        delivery_method: shipMethod === 'self' ? 'self_logistics' : shipMethod === 'pickup' ? 'pickup' : 'store_delivery',
+        pickup_point_id: shipMethod === 'pickup' ? selectedPickupPoint : null,
+        pickup_point_name: shipMethod === 'pickup' ? pickupPoints.find(p => p.id === selectedPickupPoint)?.name ?? null : null,
+      }
+      localStorage.setItem(`order_${reference}`, JSON.stringify({
+        order_number: reference, status: 'pending_payment', total,
+        items: orderData.items, payment_method: 'bank_transfer',
+        address: { fullName: form.fullName, email: form.email, phone: form.phone, city: form.city, state: form.state },
       }))
       try {
         const supabase = createClient()
@@ -858,41 +913,88 @@ export default function CheckoutPage() {
                 </div>
 
                 {/* Payment method selector */}
-                {client.features?.payOnDelivery && (
+                {(client.features?.payOnDelivery || client.features?.bankTransfer) && (
                   <div className="mb-4 space-y-2">
                     <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Payment Method</p>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className={`grid gap-2 ${client.features?.bankTransfer ? 'grid-cols-3' : 'grid-cols-2'}`}>
                       <button type="button" onClick={() => setPaymentMethod('online')}
-                        className="flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-xs font-semibold transition-colors"
+                        className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-xl border-2 text-xs font-semibold transition-colors"
                         style={{
                           borderColor: paymentMethod === 'online' ? ACCENT : '#e5e7eb',
                           color: paymentMethod === 'online' ? ACCENT : '#6b7280',
                           backgroundColor: paymentMethod === 'online' ? '#fff5f5' : '#fff',
                         }}>
-                        <ShieldCheck size={13} />
-                        Pay Online
+                        <ShieldCheck size={14} />
+                        Online
                       </button>
-                      <button type="button" onClick={() => setPaymentMethod('pod')}
-                        className="flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-xs font-semibold transition-colors"
-                        style={{
-                          borderColor: paymentMethod === 'pod' ? '#16a34a' : '#e5e7eb',
-                          color: paymentMethod === 'pod' ? '#16a34a' : '#6b7280',
-                          backgroundColor: paymentMethod === 'pod' ? '#f0fdf4' : '#fff',
-                        }}>
-                        <Truck size={13} />
-                        Pay on Delivery
-                      </button>
+                      {client.features?.payOnDelivery && (
+                        <button type="button" onClick={() => setPaymentMethod('pod')}
+                          className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-xl border-2 text-xs font-semibold transition-colors"
+                          style={{
+                            borderColor: paymentMethod === 'pod' ? '#16a34a' : '#e5e7eb',
+                            color: paymentMethod === 'pod' ? '#16a34a' : '#6b7280',
+                            backgroundColor: paymentMethod === 'pod' ? '#f0fdf4' : '#fff',
+                          }}>
+                          <Truck size={14} />
+                          On Delivery
+                        </button>
+                      )}
+                      {client.features?.bankTransfer && (
+                        <button type="button" onClick={() => setPaymentMethod('bank')}
+                          className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-xl border-2 text-xs font-semibold transition-colors"
+                          style={{
+                            borderColor: paymentMethod === 'bank' ? '#2563eb' : '#e5e7eb',
+                            color: paymentMethod === 'bank' ? '#2563eb' : '#6b7280',
+                            backgroundColor: paymentMethod === 'bank' ? '#eff6ff' : '#fff',
+                          }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 3H8L2 7h20l-6-4z"/></svg>
+                          Bank Transfer
+                        </button>
+                      )}
                     </div>
                     {paymentMethod === 'pod' && (
                       <p className="text-[11px] text-gray-500 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
                         💵 Cash payment collected at delivery. Our team will contact you to confirm.
                       </p>
                     )}
+                    {paymentMethod === 'bank' && (client as any).bankTransfer && (
+                      <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 space-y-1.5">
+                        <p className="text-xs font-bold text-blue-800">Bank Account Details</p>
+                        <div className="text-xs text-blue-700 space-y-0.5">
+                          <p><span className="font-semibold">Bank:</span> {(client as any).bankTransfer.bankName}</p>
+                          <p><span className="font-semibold">Account Name:</span> {(client as any).bankTransfer.accountName}</p>
+                          <p className="font-bold text-blue-900 text-sm tracking-widest">{(client as any).bankTransfer.accountNumber}</p>
+                        </div>
+                        <p className="text-[10px] text-blue-600">{(client as any).bankTransfer.instructions}</p>
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {/* Pay button */}
-                {paymentMethod === 'pod' ? (
+                {paymentMethod === 'bank' ? (
+                  <button
+                    onClick={handleBankTransfer}
+                    disabled={loading}
+                    className="w-full py-3.5 text-white font-bold text-sm rounded-lg flex items-center justify-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-70 disabled:cursor-not-allowed"
+                    style={{ backgroundColor: '#2563eb' }}
+                  >
+                    {loading ? (
+                      <>
+                        <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                        </svg>
+                        Placing order...
+                      </>
+                    ) : (
+                      <>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 3H8L2 7h20l-6-4z"/></svg>
+                        Place Order — Pay {formatPrice(total)} via Transfer
+                      </>
+                    )}
+                  </button>
+                ) : paymentMethod === 'pod' ? (
                   <button
                     onClick={handlePOD}
                     disabled={loading}
@@ -941,9 +1043,11 @@ export default function CheckoutPage() {
                 <p className="text-center text-xs text-gray-400 mt-3">
                   {paymentMethod === 'pod'
                     ? 'Order confirmed · Cash collected at your door'
-                    : client.paymentGateway === 'flutterwave'
-                      ? 'Secured by Flutterwave · Visa · Mastercard · Verve · USSD'
-                      : 'Secured by Paystack · Visa · Mastercard · Verve'}
+                    : paymentMethod === 'bank'
+                      ? 'Transfer exact amount · Upload receipt on confirmation page'
+                      : client.paymentGateway === 'flutterwave'
+                        ? 'Secured by Flutterwave · Visa · Mastercard · Verve · USSD'
+                        : 'Secured by Paystack · Visa · Mastercard · Verve'}
                 </p>
               </div>
             </div>

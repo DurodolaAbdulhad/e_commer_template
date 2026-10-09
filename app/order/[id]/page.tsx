@@ -18,6 +18,8 @@ import {
   Loader2,
   AlertCircle,
   UserCheck,
+  Upload,
+  X,
 } from "lucide-react";
 
 const ACCENT = "#e84c3d";
@@ -33,6 +35,35 @@ export default function OrderConfirmationPage() {
   const [accountReady, setAccountReady] = useState(false);
   const [resendSent, setResendSent] = useState(false);
   const [resending, setResending] = useState(false);
+  const [receiptUploading, setReceiptUploading] = useState(false);
+  const [receiptUrl, setReceiptUrl] = useState('');
+  const [receiptSaved, setReceiptSaved] = useState(false);
+
+  async function handleReceiptUpload(file: File) {
+    if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
+      return alert('Please upload an image or PDF');
+    }
+    setReceiptUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/admin/upload', { method: 'POST', body: form });
+      if (!res.ok) throw new Error('Upload failed');
+      const { url } = await res.json();
+      setReceiptUrl(url);
+      // Save receipt URL to the order
+      await fetch('/api/orders/receipt', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderRef: id, receiptUrl: url }),
+      });
+      setReceiptSaved(true);
+    } catch {
+      alert('Could not upload receipt. Please try again or send via WhatsApp.');
+    } finally {
+      setReceiptUploading(false);
+    }
+  }
 
   useEffect(() => {
     if (!id) return;
@@ -43,6 +74,14 @@ export default function OrderConfirmationPage() {
       const raw = localStorage.getItem(`order_${id}`);
       if (raw) stub = JSON.parse(raw);
     } catch {}
+
+    // For non-Paystack orders skip the verify call
+    const pm = stub?.payment_method;
+    if (pm === 'pay_on_delivery' || pm === 'bank_transfer') {
+      if (stub) { setOrder(stub); setStatus('success'); }
+      else setStatus('failed');
+      return;
+    }
 
     // Verify payment with Paystack server-side AND save to DB
     fetch("/api/paystack/verify", {
@@ -355,6 +394,53 @@ export default function OrderConfirmationPage() {
                   {order?.address?.email ?? "—"}
                 </div>
               </div>
+
+              {/* Bank Transfer — payment instructions + receipt upload */}
+              {order?.payment_method === 'bank_transfer' && (client as any).bankTransfer && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl overflow-hidden">
+                  <div className="px-5 py-3 border-b border-blue-200 bg-blue-100">
+                    <h2 className="font-semibold text-blue-900 text-sm flex items-center gap-2">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 3H8L2 7h20l-6-4z"/></svg>
+                      Complete Your Bank Transfer
+                    </h2>
+                  </div>
+                  <div className="px-5 py-4 space-y-3">
+                    <div className="space-y-1 text-sm text-blue-800">
+                      <p><span className="font-semibold">Bank:</span> {(client as any).bankTransfer.bankName}</p>
+                      <p><span className="font-semibold">Account Name:</span> {(client as any).bankTransfer.accountName}</p>
+                      <p className="text-xl font-bold tracking-widest text-blue-900">{(client as any).bankTransfer.accountNumber}</p>
+                      <p className="text-sm font-bold text-blue-800">Amount: {formatPrice(order?.total ?? 0)}</p>
+                    </div>
+                    <p className="text-xs text-blue-600 bg-white rounded-lg px-3 py-2 border border-blue-100">
+                      {(client as any).bankTransfer.instructions}
+                    </p>
+                    {receiptSaved ? (
+                      <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                        <CheckCircle size={14} />
+                        Receipt uploaded! We'll verify and confirm your order.
+                      </div>
+                    ) : (
+                      <label className="block cursor-pointer">
+                        <input type="file" accept="image/*,application/pdf" className="hidden"
+                          onChange={e => { const f = e.target.files?.[0]; if (f) handleReceiptUpload(f) }} />
+                        <div className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-blue-300 bg-white hover:bg-blue-50 transition-colors text-sm font-semibold text-blue-700">
+                          {receiptUploading ? (
+                            <><Loader2 size={14} className="animate-spin" /> Uploading…</>
+                          ) : (
+                            <><Upload size={14} /> Upload Payment Receipt</>
+                          )}
+                        </div>
+                      </label>
+                    )}
+                    <a href={`https://wa.me/${client.whatsapp}?text=${encodeURIComponent(`Hi! I've transferred payment for order #${order?.order_number}. Reference: ${id}`)}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-white"
+                      style={{ backgroundColor: '#25D366' }}>
+                      Send Receipt via WhatsApp
+                    </a>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Right — Summary */}
@@ -400,8 +486,23 @@ export default function OrderConfirmationPage() {
                     </span>
                   </div>
                   <div className="pt-1">
-                    <SRow label="Payment" value="Paystack" />
-                    <SRow label="Status" value="Confirmed ✓" green />
+                    <SRow
+                      label="Payment"
+                      value={
+                        order?.payment_method === 'pay_on_delivery' ? 'Pay on Delivery' :
+                        order?.payment_method === 'bank_transfer' ? 'Bank Transfer' :
+                        client.paymentGateway === 'flutterwave' ? 'Flutterwave' : 'Paystack'
+                      }
+                    />
+                    <SRow
+                      label="Status"
+                      value={
+                        order?.payment_method === 'bank_transfer' ? 'Awaiting Transfer' :
+                        order?.payment_method === 'pay_on_delivery' ? 'Pay on Delivery' :
+                        'Confirmed ✓'
+                      }
+                      green={order?.payment_method !== 'bank_transfer'}
+                    />
                     <SRow
                       label="Ref"
                       value={order?.payment_reference ?? id}
