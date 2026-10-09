@@ -2,55 +2,36 @@ import type { ShippingAddress, ShippingPackage, RateQuote, BookingResult } from 
 
 const BASE = 'https://api.kwik.delivery/api/v1'
 
-function headers() {
-  return {
-    'x-api-key': process.env.KWIK_SECRET_KEY ?? '',
-    'Content-Type': 'application/json',
-  }
+function headers(secretKey: string) {
+  return { 'x-api-key': secretKey, 'Content-Type': 'application/json' }
 }
+
+const pickDel = (a: ShippingAddress) => ({
+  address: a.address, name: a.name, phone: a.phone,
+  email: a.email ?? '', city: a.city, state: a.state,
+})
 
 export async function kwikRates(
   origin: ShippingAddress,
   destination: ShippingAddress,
   pkg: ShippingPackage,
+  secretKey: string,
 ): Promise<RateQuote[]> {
   const res = await fetch(`${BASE}/order/estimate`, {
     method: 'POST',
-    headers: headers(),
+    headers: headers(secretKey),
     body: JSON.stringify({
-      pickupDetails: [{
-        address: origin.address,
-        name: origin.name,
-        phone: origin.phone,
-        email: origin.email ?? '',
-        city: origin.city,
-        state: origin.state,
-      }],
-      deliveryDetails: [{
-        address: destination.address,
-        name: destination.name,
-        phone: destination.phone,
-        email: destination.email ?? '',
-        city: destination.city,
-        state: destination.state,
-      }],
-      packageDetails: {
-        weight: pkg.weight,
-        description: pkg.description ?? 'Order',
-        value: pkg.value ?? 0,
-      },
+      pickupDetails: [pickDel(origin)],
+      deliveryDetails: [pickDel(destination)],
+      packageDetails: { weight: pkg.weight, description: pkg.description ?? 'Order', value: pkg.value ?? 0 },
     }),
   })
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Kwik rates error ${res.status}: ${err}`)
-  }
+  if (!res.ok) throw new Error(`Kwik rates error ${res.status}: ${await res.text()}`)
   const data = await res.json()
-  const price = Number(data?.data?.totalEstimatedPrice ?? data?.data?.price ?? data?.totalEstimatedPrice ?? 0)
+  const price = Number(data?.data?.totalEstimatedPrice ?? data?.data?.price ?? 0)
   if (!price) return []
   return [{
-    provider: 'kwik',
-    providerLabel: 'Kwik',
+    provider: 'kwik', providerLabel: 'Kwik',
     service: 'Same Day / Next Day',
     price,
     estimatedDays: data?.data?.estimatedDeliveryTime ?? '1–2 business days',
@@ -64,40 +45,20 @@ export async function kwikBook(
   destination: ShippingAddress,
   pkg: ShippingPackage,
   orderRef: string,
+  secretKey: string,
 ): Promise<BookingResult> {
   const res = await fetch(`${BASE}/order`, {
     method: 'POST',
-    headers: headers(),
+    headers: headers(secretKey),
     body: JSON.stringify({
-      pickupDetails: [{
-        address: origin.address,
-        name: origin.name,
-        phone: origin.phone,
-        email: origin.email ?? '',
-        city: origin.city,
-        state: origin.state,
-      }],
-      deliveryDetails: [{
-        address: destination.address,
-        name: destination.name,
-        phone: destination.phone,
-        email: destination.email ?? '',
-        city: destination.city,
-        state: destination.state,
-      }],
-      packageDetails: {
-        weight: pkg.weight,
-        description: pkg.description ?? 'Order',
-        value: pkg.value ?? 0,
-      },
+      pickupDetails: [pickDel(origin)],
+      deliveryDetails: [pickDel(destination)],
+      packageDetails: { weight: pkg.weight, description: pkg.description ?? 'Order', value: pkg.value ?? 0 },
       externalReference: orderRef,
       paymentMethod: 'PREPAID',
     }),
   })
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Kwik booking error ${res.status}: ${err}`)
-  }
+  if (!res.ok) throw new Error(`Kwik booking error ${res.status}: ${await res.text()}`)
   const data = await res.json()
   const order = data?.data ?? data
   return {

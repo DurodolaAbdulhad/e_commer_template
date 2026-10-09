@@ -119,6 +119,13 @@ export default function ShippingPage() {
   const [selfLogisticsNote,      setSelfLogisticsNote]      = useState('Choose a logistics provider below to book your own delivery. Once booked, send us your tracking number.')
   const [selfLogisticsFee,       setSelfLogisticsFee]       = useState(0)
   const [providers,              setProviders]              = useState<Provider[]>(DEFAULT_PROVIDERS)
+  // 3PL API Keys
+  const [sendboxKey,     setSendboxKey]     = useState('')
+  const [gigClientId,    setGigClientId]    = useState('')
+  const [gigClientSec,   setGigClientSec]   = useState('')
+  const [gigOriginCode,  setGigOriginCode]  = useState('IKEJA-HQ')
+  const [kwikKey,        setKwikKey]        = useState('')
+  const [showKeys,       setShowKeys]       = useState<Record<string, boolean>>({})
 
   const [saving, setSaving] = useState(false)
   const [saved,  setSaved]  = useState(false)
@@ -140,6 +147,11 @@ export default function ShippingPage() {
     getStoreSetting('self_logistics_note').then(v    => { if (v) setSelfLogisticsNote(v) })
     getStoreSetting('self_logistics_fee').then(v     => { if (v !== null) setSelfLogisticsFee(Number(v)) })
     getStoreSetting('logistics_providers').then(v    => { if (v && Array.isArray(v) && v.length > 0) setProviders(v) })
+    getStoreSetting('sendbox_api_key').then(v    => { if (v) setSendboxKey(v) })
+    getStoreSetting('gig_client_id').then(v      => { if (v) setGigClientId(v) })
+    getStoreSetting('gig_client_secret').then(v  => { if (v) setGigClientSec(v) })
+    getStoreSetting('gig_origin_code').then(v    => { if (v) setGigOriginCode(v) })
+    getStoreSetting('kwik_secret_key').then(v    => { if (v) setKwikKey(v) })
   }, [])
 
   function addProvider() {
@@ -176,6 +188,11 @@ export default function ShippingPage() {
       await saveStoreSetting('self_logistics_note',     selfLogisticsNote)
       await saveStoreSetting('self_logistics_fee',      selfLogisticsFee)
       await saveStoreSetting('logistics_providers',     providers.filter(p => p.name.trim()))
+      await saveStoreSetting('sendbox_api_key',    sendboxKey.trim())
+      await saveStoreSetting('gig_client_id',      gigClientId.trim())
+      await saveStoreSetting('gig_client_secret',  gigClientSec.trim())
+      await saveStoreSetting('gig_origin_code',    gigOriginCode.trim() || 'IKEJA-HQ')
+      await saveStoreSetting('kwik_secret_key',    kwikKey.trim())
       setSaved(true)
       toast.success('Shipping & fulfillment settings saved')
     } catch (e: any) {
@@ -473,6 +490,92 @@ export default function ShippingPage() {
           <textarea value={returnPolicy} onChange={e => { setReturnPolicy(e.target.value); setSaved(false) }}
             placeholder="Describe your return conditions…" rows={3}
             className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400 resize-none" />
+        </Row>
+      </Section>
+
+      {/* 3PL API Keys */}
+      <Section title="3PL API Keys" icon={Globe}>
+        <div className="py-3 mb-1">
+          <p className="text-xs text-gray-500 leading-relaxed">
+            Paste your API credentials below to activate live rate quotes and one-click waybill creation from the order detail page.
+            Keys are stored securely in your database — never exposed to customers.
+          </p>
+        </div>
+
+        {/* Sendbox */}
+        <Row label="Sendbox" hint={sendboxKey ? '✓ Active — sendbox.co' : 'Get key at sendbox.co → Settings → API Keys'}>
+          <div className="flex gap-2 items-center">
+            <input
+              type={showKeys['sendbox'] ? 'text' : 'password'}
+              value={sendboxKey}
+              onChange={e => { setSendboxKey(e.target.value); setSaved(false) }}
+              placeholder="sb_live_…"
+              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400 font-mono"
+            />
+            <button onClick={() => setShowKeys(k => ({ ...k, sendbox: !k.sendbox }))}
+              className="text-xs text-gray-400 px-2 hover:text-gray-600">
+              {showKeys['sendbox'] ? 'Hide' : 'Show'}
+            </button>
+            {sendboxKey && (
+              <span className="text-[10px] font-semibold text-green-600 bg-green-50 border border-green-200 px-2 py-1 rounded-full whitespace-nowrap">Active</span>
+            )}
+          </div>
+        </Row>
+
+        {/* GIG Logistics */}
+        <Row label="GIG Logistics" hint={gigClientId ? '✓ Active — giglogistics.com' : 'Contact GIG to get merchant API credentials'}>
+          <div className="space-y-2">
+            <input
+              type={showKeys['gig'] ? 'text' : 'password'}
+              value={gigClientId}
+              onChange={e => { setGigClientId(e.target.value); setSaved(false) }}
+              placeholder="Client ID / Username"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400 font-mono"
+            />
+            <input
+              type={showKeys['gig'] ? 'text' : 'password'}
+              value={gigClientSec}
+              onChange={e => { setGigClientSec(e.target.value); setSaved(false) }}
+              placeholder="Client Secret / Password"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400 font-mono"
+            />
+            <div className="flex gap-2 items-center">
+              <input
+                type="text"
+                value={gigOriginCode}
+                onChange={e => { setGigOriginCode(e.target.value); setSaved(false) }}
+                placeholder="Origin service centre code e.g. IKEJA-HQ"
+                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400 font-mono"
+              />
+              <button onClick={() => setShowKeys(k => ({ ...k, gig: !k.gig }))}
+                className="text-xs text-gray-400 px-2 hover:text-gray-600 whitespace-nowrap">
+                {showKeys['gig'] ? 'Hide' : 'Show'}
+              </button>
+              {gigClientId && gigClientSec && (
+                <span className="text-[10px] font-semibold text-green-600 bg-green-50 border border-green-200 px-2 py-1 rounded-full whitespace-nowrap">Active</span>
+              )}
+            </div>
+          </div>
+        </Row>
+
+        {/* Kwik */}
+        <Row label="Kwik" hint={kwikKey ? '✓ Active — kwik.delivery' : 'Get key at kwik.delivery → Developer → API Keys'}>
+          <div className="flex gap-2 items-center">
+            <input
+              type={showKeys['kwik'] ? 'text' : 'password'}
+              value={kwikKey}
+              onChange={e => { setKwikKey(e.target.value); setSaved(false) }}
+              placeholder="kwik_sk_…"
+              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400 font-mono"
+            />
+            <button onClick={() => setShowKeys(k => ({ ...k, kwik: !k.kwik }))}
+              className="text-xs text-gray-400 px-2 hover:text-gray-600">
+              {showKeys['kwik'] ? 'Hide' : 'Show'}
+            </button>
+            {kwikKey && (
+              <span className="text-[10px] font-semibold text-green-600 bg-green-50 border border-green-200 px-2 py-1 rounded-full whitespace-nowrap">Active</span>
+            )}
+          </div>
         </Row>
       </Section>
 
