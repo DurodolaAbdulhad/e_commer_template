@@ -3,8 +3,8 @@
 import { useState, FormEvent, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { Save, ArrowLeft, X, Upload, Link2, Plus, Check, Loader2 } from 'lucide-react'
-import { getCategories, createCategory, createProduct, updateProduct } from '@/lib/admin-db'
+import { Save, ArrowLeft, X, Upload, Link2, Plus, Check, Loader2, Trash2, Palette } from 'lucide-react'
+import { getCategories, createCategory, createProduct, updateProduct, saveProductVariants } from '@/lib/admin-db'
 import toast from 'react-hot-toast'
 
 const ACCENT = '#e84c3d'
@@ -241,6 +241,45 @@ export default function ProductForm({ product }: { product?: any }) {
   const [fileUrl,       setFileUrl]       = useState(product?.file_url ?? '')
   const [returnPolicy,  setReturnPolicy]  = useState(product?.return_policy ?? '')
 
+  // Variant groups (physical products)
+  type VOption = { value: string; stock: string; color: string }
+  type VGroup  = { tempId: string; name: string; type: 'size' | 'color' | 'text'; options: VOption[] }
+  const [variantGroups, setVariantGroups] = useState<VGroup[]>(() => {
+    const existing = (product?.product_variants ?? []).filter((v: any) => v.type !== undefined && v.type !== null)
+    return existing.map((v: any, i: number) => ({
+      tempId: String(i),
+      name: v.name ?? '',
+      type: v.type ?? 'text',
+      options: (v.options ?? []).map((o: any) => ({
+        value: o.value ?? '',
+        stock: o.stock != null ? String(o.stock) : '',
+        color: o.color ?? '',
+      })),
+    }))
+  })
+
+  function addVGroup() {
+    setVariantGroups(g => [...g, { tempId: Date.now().toString(), name: '', type: 'size', options: [{ value: '', stock: '', color: '' }] }])
+  }
+  function removeVGroup(tempId: string) {
+    setVariantGroups(g => g.filter(x => x.tempId !== tempId))
+  }
+  function updateVGroup(tempId: string, field: 'name' | 'type', val: string) {
+    setVariantGroups(g => g.map(x => x.tempId === tempId ? { ...x, [field]: val } : x))
+  }
+  function addVOption(tempId: string) {
+    setVariantGroups(g => g.map(x => x.tempId === tempId ? { ...x, options: [...x.options, { value: '', stock: '', color: '' }] } : x))
+  }
+  function removeVOption(tempId: string, idx: number) {
+    setVariantGroups(g => g.map(x => x.tempId === tempId ? { ...x, options: x.options.filter((_, i) => i !== idx) } : x))
+  }
+  function updateVOption(tempId: string, idx: number, field: keyof VOption, val: string) {
+    setVariantGroups(g => g.map(x => x.tempId === tempId
+      ? { ...x, options: x.options.map((o, i) => i === idx ? { ...o, [field]: val } : o) }
+      : x
+    ))
+  }
+
   const loadCategories = useCallback(async () => {
     const cats = await getCategories()
     setAllCategories(cats)
@@ -285,12 +324,32 @@ export default function ProductForm({ product }: { product?: any }) {
         file_url: productType === 'digital' && fileUrl ? fileUrl : null,
         return_policy: returnPolicy.trim() || null,
       }
+      let productId: string
       if (isEdit) {
         await updateProduct(product.id, payload)
+        productId = product.id
         toast.success('Product updated!')
       } else {
-        await createProduct(payload)
+        const created = await createProduct(payload)
+        productId = created.id
         toast.success('Product created!')
+      }
+      // Save variants for physical products
+      if (productType === 'physical' && productId) {
+        const variantsPayload = variantGroups
+          .filter(g => g.name.trim())
+          .map(g => ({
+            name: g.name.trim(),
+            type: g.type,
+            options: g.options
+              .filter(o => o.value.trim())
+              .map(o => ({
+                value: o.value.trim(),
+                ...(o.stock !== '' ? { stock: Number(o.stock) } : {}),
+                ...(g.type === 'color' && o.color ? { color: o.color } : {}),
+              })),
+          }))
+        await saveProductVariants(productId, variantsPayload)
       }
       router.push('/admin/products')
     } catch (err: any) {
@@ -489,6 +548,95 @@ export default function ProductForm({ product }: { product?: any }) {
               </div>
             </div>
           </div>
+
+          {/* Product Variants — physical only */}
+          {productType === 'physical' && (
+            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wide">Product Variants</h3>
+                  <p className="text-[10px] text-gray-400 mt-0.5">Sizes, colors, or other options customers can choose</p>
+                </div>
+                <button type="button" onClick={addVGroup}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white rounded-lg"
+                  style={{ backgroundColor: ACCENT }}>
+                  <Plus size={11} /> Add Variant
+                </button>
+              </div>
+              <div className="p-5 space-y-4">
+                {variantGroups.length === 0 && (
+                  <p className="text-xs text-gray-400 text-center py-2">No variants yet — click "Add Variant" to add sizes, colors, etc.</p>
+                )}
+                {variantGroups.map(group => (
+                  <div key={group.tempId} className="border border-gray-200 rounded-xl overflow-hidden">
+                    {/* Group header */}
+                    <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-200">
+                      <input
+                        value={group.name}
+                        onChange={e => updateVGroup(group.tempId, 'name', e.target.value)}
+                        placeholder="Variant name (e.g. Size, Color)"
+                        className="flex-1 px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400 bg-white"
+                      />
+                      <select
+                        value={group.type}
+                        onChange={e => updateVGroup(group.tempId, 'type', e.target.value as any)}
+                        className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-gray-400 bg-white">
+                        <option value="size">Size</option>
+                        <option value="color">Color</option>
+                        <option value="text">Text</option>
+                      </select>
+                      <button type="button" onClick={() => removeVGroup(group.tempId)}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                    {/* Options */}
+                    <div className="p-3 space-y-2">
+                      {group.options.map((opt, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <input
+                            value={opt.value}
+                            onChange={e => updateVOption(group.tempId, idx, 'value', e.target.value)}
+                            placeholder={group.type === 'color' ? 'Color name (e.g. Red)' : group.type === 'size' ? 'e.g. S, M, L, XL' : 'Option value'}
+                            className="flex-1 px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-gray-400"
+                          />
+                          {group.type === 'color' && (
+                            <div className="flex items-center gap-1">
+                              <Palette size={11} className="text-gray-400 shrink-0" />
+                              <input
+                                type="color"
+                                value={opt.color || '#000000'}
+                                onChange={e => updateVOption(group.tempId, idx, 'color', e.target.value)}
+                                className="w-8 h-7 rounded border border-gray-200 cursor-pointer p-0.5"
+                                title="Pick color"
+                              />
+                            </div>
+                          )}
+                          <input
+                            type="number"
+                            value={opt.stock}
+                            onChange={e => updateVOption(group.tempId, idx, 'stock', e.target.value)}
+                            placeholder="Stock"
+                            min="0"
+                            className="w-20 px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-gray-400"
+                          />
+                          <button type="button" onClick={() => removeVOption(group.tempId, idx)}
+                            className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-400 transition-colors shrink-0">
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                      <button type="button" onClick={() => addVOption(group.tempId)}
+                        className="flex items-center gap-1 text-xs font-semibold mt-1 hover:underline"
+                        style={{ color: ACCENT }}>
+                        <Plus size={11} /> Add option
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── RIGHT SIDEBAR ── */}
