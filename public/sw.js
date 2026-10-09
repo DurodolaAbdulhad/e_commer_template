@@ -1,3 +1,33 @@
+// ─── Push Notifications ───────────────────────────────────────────────────────
+self.addEventListener('push', event => {
+  if (!event.data) return
+  let data = {}
+  try { data = event.data.json() } catch { data = { title: 'New notification', body: event.data.text() } }
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'Notification', {
+      body:  data.body  || '',
+      icon:  data.icon  || '/icons/icon-192.png',
+      badge: data.badge || '/icons/icon-72.png',
+      image: data.image || undefined,
+      data:  { url: data.url || '/' },
+      vibrate: [100, 50, 100],
+    })
+  )
+})
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close()
+  const url = event.notification.data?.url || '/'
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      const existing = list.find(c => c.url === url && 'focus' in c)
+      if (existing) return existing.focus()
+      return clients.openWindow(url)
+    })
+  )
+})
+
+// ─── Cache ────────────────────────────────────────────────────────────────────
 const CACHE_VER    = 'v1'
 const STATIC_CACHE = `static-${CACHE_VER}`
 const IMAGE_CACHE  = `images-${CACHE_VER}`

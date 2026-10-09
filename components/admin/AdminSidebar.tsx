@@ -47,6 +47,7 @@ const NAV: NavItem[] = [
   { href: '/admin/subscribers',      label: 'Subscribers',     icon: Mail },
   { href: '/admin/abandoned-carts',  label: 'Abandoned Carts', icon: ShoppingCart },
   { href: '/admin/back-in-stock',    label: 'Back-in-Stock',   icon: Bell },
+  { href: '/admin/push',             label: 'Push Notifications', icon: Bell },
   { href: '/admin/staff',            label: 'Staff & Roles',   icon: UserCog },
   { href: '/admin/blog',             label: 'Blog Posts',      icon: FileText },
   { href: '/admin/pages',            label: 'Pages Editor',    icon: FileText },
