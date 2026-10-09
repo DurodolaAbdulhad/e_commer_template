@@ -310,6 +310,14 @@ export default function OrderConfirmationPage() {
                   ⚠ Saving in background…
                 </span>
               )}
+              <Link
+                href={`/invoice/${id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                🧾 View Invoice
+              </Link>
             </div>
           </div>
 
