@@ -1,8 +1,10 @@
 'use client'
 
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import { client } from '@/config/client'
 import NewsletterForm from '@/components/ui/NewsletterForm'
+import { getStoreSetting } from '@/lib/admin-db'
 
 const W = '1200px'
 const inner = {
@@ -61,6 +63,13 @@ const linkStyle: React.CSSProperties = {
 
 export default function Footer() {
   const year = new Date().getFullYear()
+  const [businessHeading, setBusinessHeading] = useState('')
+  const [copyright, setCopyright] = useState('')
+
+  useEffect(() => {
+    getStoreSetting('footer_business_heading').then(v => { if (v) setBusinessHeading(v) }).catch(() => {})
+    getStoreSetting('footer_copyright').then(v => { if (v) setCopyright(v) }).catch(() => {})
+  }, [])
 
   return (
     <footer style={{ backgroundColor: '#fff', borderTop: '3px solid #1a2638', width: '100%' }}>
@@ -112,7 +121,7 @@ export default function Footer() {
 
           {/* Col 3 — Business */}
           <div>
-            <p style={colHead}>{client.name} Business</p>
+            <p style={colHead}>{businessHeading || `${client.name} Business`}</p>
             {[
               { label: 'Sell on ' + client.name, href: '/pages/sell' },
               { label: 'Advertise With Us',       href: '/pages/advertise' },
@@ -177,7 +186,7 @@ export default function Footer() {
       <div style={{ backgroundColor: '#f5f5f5', borderTop: '1px solid #e8e8e8' }}>
         <div className="flex flex-col sm:flex-row items-center gap-2 sm:justify-between py-3 px-6" style={{ maxWidth: W, margin: '0 auto' }}>
           <p style={{ fontSize: '12px', color: '#888' }}>
-            © {year} {client.name}. All Rights Reserved
+            {copyright || `© ${year} ${client.name}. All Rights Reserved`}
           </p>
 
           {/* Payment badges */}

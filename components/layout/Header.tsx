@@ -46,6 +46,7 @@ export default function Header() {
   const [logoAccentWord, setLogoAccentWord] = useState<string>('')
   const [logoAccentColor,setLogoAccentColor]= useState<string>(ACCENT)
   const [dbCategories,   setDbCategories]   = useState<any[]>([])
+  const [announcementText, setAnnouncementText] = useState<string>('')
   const searchWrapRef = useRef<HTMLDivElement>(null)
 
   // Load logo from site_settings (overrides static config)
@@ -59,6 +60,7 @@ export default function Header() {
     getStoreSetting('logo_text_weight').then((v: string | null) => { if (v) setLogoTextWeight(v) }).catch(() => {})
     getStoreSetting('logo_accent_word').then((v: string | null) => { if (v) setLogoAccentWord(v) }).catch(() => {})
     getStoreSetting('logo_accent_color').then((v: string | null)=> { if (v) setLogoAccentColor(v) }).catch(() => {})
+    getStoreSetting('announcement_text').then((v: string | null) => { if (v) setAnnouncementText(v) }).catch(() => {})
     fetch('/api/categories')
       .then(r => r.json())
       .then(({ categories }) => { if (categories?.length) setDbCategories(categories) })
@@ -115,7 +117,7 @@ export default function Header() {
         <div style={{ backgroundColor: H_BG, borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '10px 0' }}>
           <div style={inner} className="justify-between">
             <span className="text-xs" style={{ color: 'rgba(255,255,255,0.65)' }}>
-              Welcome to {client.name} Online Store!
+              {announcementText || `Welcome to ${client.name} Online Store!`}
             </span>
             <div className="hidden md:flex items-center text-xs" style={{ color: 'rgba(255,255,255,0.65)' }}>
               <Link href="/pages/store-location" className="flex items-center gap-1 hover:text-white transition-colors px-3">

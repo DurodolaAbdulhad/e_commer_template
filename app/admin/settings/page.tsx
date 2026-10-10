@@ -69,6 +69,13 @@ export default function SettingsPage() {
   const [savingTiers,   setSavingTiers]   = useState(false)
   const [savedTiers,    setSavedTiers]    = useState(false)
 
+  // Store text (announcement bar, footer)
+  const [announcementText,      setAnnouncementText]      = useState('')
+  const [footerBusinessHeading, setFooterBusinessHeading] = useState('')
+  const [footerCopyright,       setFooterCopyright]       = useState('')
+  const [savingStoreText,       setSavingStoreText]       = useState(false)
+  const [savedStoreText,        setSavedStoreText]        = useState(false)
+
   // Newsletter popup
   const [popupEnabled,  setPopupEnabled]  = useState(true)
   const [popupTitle,    setPopupTitle]    = useState('Get 10% off your first order')
@@ -96,6 +103,9 @@ export default function SettingsPage() {
     getStoreSetting('tiktok_pixel').then(v => { if (v) setTiktokPixel(v) })
     getStoreSetting('clarity_id').then(v   => { if (v) setClarityId(v) })
     getStoreSetting('ai_api_key').then(v  => { if (v) setAiApiKey(v) })
+    getStoreSetting('announcement_text').then(v        => { if (v) setAnnouncementText(v) })
+    getStoreSetting('footer_business_heading').then(v  => { if (v) setFooterBusinessHeading(v) })
+    getStoreSetting('footer_copyright').then(v         => { if (v) setFooterCopyright(v) })
     getStoreSetting('popup_enabled').then(v => { if (v !== null && v !== undefined) setPopupEnabled(v !== '0' && v !== false) })
     getStoreSetting('popup_title').then(v       => { if (v) setPopupTitle(v) })
     getStoreSetting('popup_description').then(v => { if (v) setPopupDesc(v) })
@@ -205,6 +215,18 @@ export default function SettingsPage() {
       toast.success('Newsletter popup settings saved')
     } catch (e: any) { toast.error(e?.message || 'Save failed') }
     finally { setSavingPopup(false) }
+  }
+
+  async function handleSaveStoreText() {
+    setSavingStoreText(true)
+    try {
+      await saveStoreSetting('announcement_text',       announcementText.trim())
+      await saveStoreSetting('footer_business_heading', footerBusinessHeading.trim())
+      await saveStoreSetting('footer_copyright',        footerCopyright.trim())
+      setSavedStoreText(true)
+      toast.success('Store text saved — reload the storefront to see changes')
+    } catch (e: any) { toast.error(e?.message || 'Save failed') }
+    finally { setSavingStoreText(false) }
   }
 
   async function handleSaveTracking() {
@@ -477,6 +499,55 @@ export default function SettingsPage() {
               {savedMeta ? <><Check size={13} /> Saved</>
                 : savingMeta ? <><Save size={13} className="animate-pulse" /> Saving…</>
                 : <><Save size={13} /> Save</>}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Store Text ───────────────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-gray-100 bg-gray-50">
+          <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wide">Store Text</h3>
+          <p className="text-[10px] text-gray-400 mt-0.5">Announcement bar and footer copy — leave blank to use store name default</p>
+        </div>
+        <div className="px-5 py-5 space-y-4">
+          <div>
+            <label className="text-xs font-semibold text-gray-600 block mb-1.5">Announcement bar text</label>
+            <input
+              value={announcementText}
+              onChange={e => { setAnnouncementText(e.target.value); setSavedStoreText(false) }}
+              placeholder={`Welcome to ${client.name} Online Store!`}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400"
+            />
+            <p className="text-[10px] text-gray-400 mt-1">Shown in the slim bar at the very top of every page</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-600 block mb-1.5">Footer business heading</label>
+            <input
+              value={footerBusinessHeading}
+              onChange={e => { setFooterBusinessHeading(e.target.value); setSavedStoreText(false) }}
+              placeholder={`${client.name} Business`}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400"
+            />
+            <p className="text-[10px] text-gray-400 mt-1">Heading for the Business column in the footer</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-600 block mb-1.5">Footer copyright</label>
+            <input
+              value={footerCopyright}
+              onChange={e => { setFooterCopyright(e.target.value); setSavedStoreText(false) }}
+              placeholder={`© ${new Date().getFullYear()} ${client.name}. All Rights Reserved`}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400"
+            />
+            <p className="text-[10px] text-gray-400 mt-1">Copyright line at the bottom of every page</p>
+          </div>
+          <div className="flex justify-end">
+            <button onClick={handleSaveStoreText} disabled={savingStoreText}
+              className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded-xl text-white hover:opacity-90 disabled:opacity-60"
+              style={{ backgroundColor: savedStoreText ? '#16a34a' : ACCENT }}>
+              {savedStoreText ? <><Check size={13} /> Saved</>
+                : savingStoreText ? <><Save size={13} className="animate-pulse" /> Saving…</>
+                : <><Save size={13} /> Save Text</>}
             </button>
           </div>
         </div>
