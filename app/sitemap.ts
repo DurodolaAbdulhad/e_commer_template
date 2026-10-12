@@ -14,12 +14,17 @@ function isSupabaseReady() {
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes: MetadataRoute.Sitemap = [
-    url('/',        1.0, 'daily'),
-    url('/shop',    0.9, 'daily'),
-    url('/blog',    0.8, 'weekly'),
-    url('/about',   0.6, 'monthly'),
-    url('/contact', 0.6, 'monthly'),
-    url('/faq',     0.6, 'monthly'),
+    url('/',                    1.0, 'daily'),
+    url('/shop',                0.9, 'daily'),
+    url('/blog',                0.8, 'weekly'),
+    url('/pages/about',         0.6, 'monthly'),
+    url('/pages/contact',       0.6, 'monthly'),
+    url('/pages/faq',           0.6, 'monthly'),
+    url('/pages/privacy',       0.4, 'monthly'),
+    url('/pages/terms',         0.4, 'monthly'),
+    url('/pages/shipping',      0.5, 'monthly'),
+    url('/pages/returns',       0.5, 'monthly'),
+    url('/shop/collections',    0.7, 'weekly'),
   ]
 
   if (!isSupabaseReady()) return staticRoutes

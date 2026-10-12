@@ -39,6 +39,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
     if (!product) return { title: client.name }
 
+    const siteUrl     = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+    const canonical   = `${siteUrl}/shop/${slug}`
     const title       = `${product.name} | ${client.name}`
     const description = product.description
       ? product.description.slice(0, 160)
@@ -48,7 +50,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     return {
       title,
       description,
-      openGraph: { title, description, images: [image], type: 'website' },
+      alternates: { canonical },
+      openGraph: { title, description, url: canonical, images: [{ url: image, width: 1200, height: 630, alt: product.name }], type: 'website', locale: 'en_NG' },
       twitter:   { card: 'summary_large_image', title, description, images: [image] },
     }
   } catch {
@@ -132,9 +135,32 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   if (!product) notFound()
 
   const category = product.categories
+  const siteUrl  = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+
+  const productSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: product.name,
+    description: product.description ?? undefined,
+    image: product.images ?? [],
+    sku: product.sku ?? product.id,
+    brand: product.brand ? { '@type': 'Brand', name: product.brand } : undefined,
+    offers: {
+      '@type': 'Offer',
+      url: `${siteUrl}/shop/${slug}`,
+      priceCurrency: client.currency,
+      price: product.price,
+      priceValidUntil: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+      itemCondition: 'https://schema.org/NewCondition',
+      availability: (product.stock_quantity ?? 1) > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+      seller: { '@type': 'Organization', name: client.name },
+    },
+    ...(product.rating ? { aggregateRating: { '@type': 'AggregateRating', ratingValue: product.rating, reviewCount: product.review_count ?? 1 } } : {}),
+  }
 
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }} />
       <Header />
       <PageBox>
         <main className="px-4 sm:px-6 py-5">

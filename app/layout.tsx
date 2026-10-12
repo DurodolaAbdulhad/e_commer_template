@@ -38,17 +38,37 @@ async function getSiteMeta() {
 
 export async function generateMetadata(): Promise<Metadata> {
   const meta = await getSiteMeta()
-  const title = meta['site_title'] || client.seo.title
-  const favicon = meta['site_favicon'] || null
+  const title       = meta['site_title'] || client.seo.title
+  const description = client.seo.description
+  const favicon     = meta['site_favicon'] || null
+  const siteUrl     = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+  const ogImage     = client.seo.ogImage.startsWith('http') ? client.seo.ogImage : `${siteUrl}${client.seo.ogImage}`
+
   return {
-    metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'),
-    title,
-    description: client.seo.description,
+    metadataBase: new URL(siteUrl),
+    title: { default: title, template: `%s | ${client.name}` },
+    description,
     icons: favicon ? [{ rel: 'icon', url: favicon }] : undefined,
+    alternates: { canonical: siteUrl },
     openGraph: {
       title,
-      description: client.seo.description,
-      images: [client.seo.ogImage],
+      description,
+      url: siteUrl,
+      siteName: client.name,
+      type: 'website',
+      locale: 'en_NG',
+      images: [{ url: ogImage, width: 1200, height: 630, alt: title }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [ogImage],
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1 },
     },
   }
 }
@@ -69,9 +89,53 @@ export default async function RootLayout({
   const tiktokId   = meta['tiktok_pixel'] || (client as any).tracking?.tiktokPixelId || ''
   const clarityId  = meta['clarity_id']   || ''
 
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+
+  const orgSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: client.name,
+    url: siteUrl,
+    logo: (client as any).logo ? `${siteUrl}${(client as any).logo}` : siteUrl,
+    contactPoint: {
+      '@type': 'ContactPoint',
+      telephone: client.phone || undefined,
+      email: client.email || undefined,
+      contactType: 'customer service',
+      areaServed: 'NG',
+      availableLanguage: 'English',
+    },
+    address: {
+      '@type': 'PostalAddress',
+      addressLocality: client.address || 'Lagos',
+      addressCountry: 'NG',
+    },
+    sameAs: [
+      (client as any).socials?.instagram,
+      (client as any).socials?.facebook,
+      (client as any).socials?.twitter,
+    ].filter(Boolean),
+  }
+
+  const websiteSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: client.name,
+    url: siteUrl,
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: { '@type': 'EntryPoint', urlTemplate: `${siteUrl}/search?q={search_term_string}` },
+      'query-input': 'required name=search_term_string',
+    },
+  }
+
   return (
     <html lang="en" data-scroll-behavior="smooth">
       <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify([orgSchema, websiteSchema]) }}
+        />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
