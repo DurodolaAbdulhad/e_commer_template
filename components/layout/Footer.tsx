@@ -83,8 +83,8 @@ export default function Footer() {
             <p style={colHead}>Quick Links</p>
             {[
               { label: 'Support Center',   href: '/pages/support' },
-              { label: 'Policy',           href: '/pages/privacy' },
-              { label: 'Term & Conditions', href: '/pages/terms' },
+              { label: 'Privacy Policy',    href: '/pages/privacy' },
+              { label: 'Terms & Conditions', href: '/pages/terms' },
               { label: 'Shipping',         href: '/pages/shipping' },
               { label: 'Return',           href: '/pages/returns' },
               { label: 'FAQs',             href: '/pages/faq' },
@@ -185,9 +185,20 @@ export default function Footer() {
       {/* ── Bottom bar ── */}
       <div style={{ backgroundColor: '#f5f5f5', borderTop: '1px solid #e8e8e8' }}>
         <div className="flex flex-col sm:flex-row items-center gap-2 sm:justify-between py-3 px-6" style={{ maxWidth: W, margin: '0 auto' }}>
-          <p style={{ fontSize: '12px', color: '#888' }}>
-            {copyright || `© ${year} ${client.name}. All Rights Reserved`}
-          </p>
+          <div className="flex items-center gap-3 flex-wrap justify-center sm:justify-start">
+            <p style={{ fontSize: '12px', color: '#888' }}>
+              {copyright || `© ${year} ${client.name}. All Rights Reserved`}
+            </p>
+            <span style={{ color: '#ddd', fontSize: '12px' }}>·</span>
+            <button
+              onClick={() => window.dispatchEvent(new Event('open-cookie-settings'))}
+              style={{ fontSize: '12px', color: '#888', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+              onMouseEnter={e => (e.currentTarget.style.color = '#e84c3d')}
+              onMouseLeave={e => (e.currentTarget.style.color = '#888')}
+            >
+              Cookie Settings
+            </button>
+          </div>
 
           {/* Payment badges */}
           <div className="flex flex-wrap items-center justify-center gap-1.5">
