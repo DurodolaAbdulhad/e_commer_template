@@ -56,6 +56,12 @@ export const client = {
     discountPercent: 10,
   },
 
+  pricingTiers: [
+    { tag: 'reseller',    label: 'Reseller',    discountPercent: 10, minOrder: 0,      color: '#16a34a' },
+    { tag: 'distributor', label: 'Distributor', discountPercent: 20, minOrder: 200000, color: '#7c3aed' },
+    { tag: 'vip',         label: 'VIP',         discountPercent: 15, minOrder: 0,      color: '#b45309' },
+  ],
+
   socials: {
     instagram: "",
     facebook: "",

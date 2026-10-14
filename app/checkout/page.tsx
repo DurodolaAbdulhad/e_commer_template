@@ -14,7 +14,7 @@ import Link from 'next/link'
 import { ChevronRight, Tag, ShieldCheck, Truck, Lock, MessageCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import CheckoutRecommendations from '@/components/checkout/CheckoutRecommendations'
-import { validateCoupon, redeemGiftCard, evaluateAutoDiscount } from '@/lib/admin-db'
+import { validateCoupon, redeemGiftCard, evaluateAutoDiscount, getCustomerTier } from '@/lib/admin-db'
 
 const ACCENT = '#e84c3d'
 
@@ -58,6 +58,7 @@ export default function CheckoutPage() {
   const [walletApplied,    setWalletApplied]    = useState(false)
   const [loyaltyPoints,    setLoyaltyPoints]    = useState(0)
   const [loyaltyApplied,   setLoyaltyApplied]   = useState(false)
+  const [customerTier,     setCustomerTier]     = useState<string | null>(null)
   const [loading,          setLoading]          = useState(false)
   const [klumpLoaded,      setKlumpLoaded]      = useState(false)
   const [paymentMethod,    setPaymentMethod]    = useState<'online' | 'pod' | 'bank' | 'whatsapp' | 'bnpl'>(
@@ -96,12 +97,19 @@ export default function CheckoutPage() {
 
   if (!mounted) return null
 
-  // Fix 5: wholesale tag is authoritative from Supabase user_metadata only
-  // Admin assigns tags via /admin/customers which writes to Supabase user_metadata server-side
-  // Reading from localStorage here would allow anyone to grant themselves wholesale pricing
+  // Pricing tiers — multi-tier reseller/distributor/VIP discount (Task #13)
+  // Tier is fetched server-side by email and stored in site_settings, not localStorage
+  const activeTierConfig = (client as any).pricingTiers?.length
+    ? (client as any).pricingTiers.find((t: any) => t.tag === customerTier)
+    : null
+  const tierDiscount = activeTierConfig && subtotal >= (activeTierConfig.minOrder ?? 0)
+    ? Math.floor(subtotal * activeTierConfig.discountPercent / 100)
+    : 0
+
+  // Legacy wholesale — only used if pricingTiers not configured
   const wholesaleTag = client.wholesale?.tag ?? 'wholesale'
   const userMetaTags: string[] = (user as any)?.user_metadata?.tags ?? []
-  const isWholesale = client.wholesale?.enabled && userMetaTags.includes(wholesaleTag)
+  const isWholesale = !(client as any).pricingTiers?.length && client.wholesale?.enabled && userMetaTags.includes(wholesaleTag)
   const wholesaleDiscount = isWholesale
     ? Math.floor(subtotal * (client.wholesale.discountPercent ?? 0) / 100)
     : 0
@@ -134,7 +142,7 @@ export default function CheckoutPage() {
     ? Math.min(loyaltyPoints * nairaPerPoint, subtotal)
     : 0
   // Shipping not included in customer total — merchant absorbs it
-  const totalBeforeVat = subtotal - discount - (autoDiscount?.value ?? 0) - giftCardDiscount - wholesaleDiscount - walletDiscount - loyaltyDiscount
+  const totalBeforeVat = subtotal - discount - (autoDiscount?.value ?? 0) - giftCardDiscount - tierDiscount - wholesaleDiscount - walletDiscount - loyaltyDiscount
   const vatAmount   = Math.floor(totalBeforeVat * vatRate)
   const total       = Math.max(0, totalBeforeVat + vatAmount)
 
@@ -145,9 +153,10 @@ export default function CheckoutPage() {
   async function checkWalletBalance(email: string) {
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return
     try {
-      const [walletRes, loyaltyRes] = await Promise.all([
+      const [walletRes, loyaltyRes, tier] = await Promise.all([
         fetch(`/api/wallet/balance?email=${encodeURIComponent(email.trim())}`),
         client.features?.loyalty ? fetch(`/api/loyalty/balance?email=${encodeURIComponent(email.trim())}`) : Promise.resolve(null),
+        getCustomerTier(email.trim()) as Promise<string | null>,
       ])
       if (walletRes.ok) {
         const { balance } = await walletRes.json()
@@ -159,6 +168,7 @@ export default function CheckoutPage() {
         setLoyaltyPoints(points ?? 0)
         if ((points ?? 0) <= 0) setLoyaltyApplied(false)
       }
+      setCustomerTier(tier)
     } catch {}
   }
 
@@ -303,7 +313,7 @@ export default function CheckoutPage() {
           total:           verifiedTotal,
           subtotal,
           shipping_cost:   verifiedShipping,   // merchant absorbs — recorded but not charged
-          discount:        verifiedCouponDisc + (autoDiscount?.value ?? 0) + giftCardDiscount + wholesaleDiscount + walletDiscount + loyaltyDiscount,
+          discount:        verifiedCouponDisc + (autoDiscount?.value ?? 0) + giftCardDiscount + tierDiscount + wholesaleDiscount + walletDiscount + loyaltyDiscount,
           vat:             vatAmount,
           items: (items as any[]).map((i: any) => ({
             id: i.id, name: i.name, price: i.price,
@@ -486,7 +496,7 @@ export default function CheckoutPage() {
         })),
         subtotal,
         shipping_cost: merchantShipping,
-        discount: discount + (autoDiscount?.value ?? 0) + giftCardDiscount + wholesaleDiscount + walletDiscount + loyaltyDiscount,
+        discount: discount + (autoDiscount?.value ?? 0) + giftCardDiscount + tierDiscount + wholesaleDiscount + walletDiscount + loyaltyDiscount,
         vat: vatAmount,
         total,
         price_sig: null,
@@ -538,7 +548,7 @@ export default function CheckoutPage() {
         })),
         subtotal,
         shipping_cost: merchantShipping,
-        discount: discount + (autoDiscount?.value ?? 0) + giftCardDiscount + wholesaleDiscount + walletDiscount + loyaltyDiscount,
+        discount: discount + (autoDiscount?.value ?? 0) + giftCardDiscount + tierDiscount + wholesaleDiscount + walletDiscount + loyaltyDiscount,
         vat: vatAmount,
         total,
         price_sig: null,
@@ -610,7 +620,7 @@ export default function CheckoutPage() {
             items: orderItems,
             subtotal,
             shipping_cost: merchantShipping,
-            discount: discount + (autoDiscount?.value ?? 0) + giftCardDiscount + wholesaleDiscount + walletDiscount + loyaltyDiscount,
+            discount: discount + (autoDiscount?.value ?? 0) + giftCardDiscount + tierDiscount + wholesaleDiscount + walletDiscount + loyaltyDiscount,
             vat: vatAmount,
             total,
             price_sig: null,
@@ -669,7 +679,7 @@ export default function CheckoutPage() {
         })),
         subtotal,
         shipping_cost: merchantShipping,
-        discount: discount + (autoDiscount?.value ?? 0) + giftCardDiscount + wholesaleDiscount + walletDiscount + loyaltyDiscount,
+        discount: discount + (autoDiscount?.value ?? 0) + giftCardDiscount + tierDiscount + wholesaleDiscount + walletDiscount + loyaltyDiscount,
         vat: vatAmount,
         total,
         price_sig: null,
@@ -702,7 +712,7 @@ export default function CheckoutPage() {
       const deliveryAddr = shipMethod === 'pickup'
         ? `Pickup (${pickupPoints.find(p => p.id === selectedPickupPoint)?.name ?? 'store'})`
         : `${form.address}, ${form.city}, ${form.state}`
-      const discountTotal = discount + (autoDiscount?.value ?? 0) + giftCardDiscount + wholesaleDiscount + walletDiscount + loyaltyDiscount
+      const discountTotal = discount + (autoDiscount?.value ?? 0) + giftCardDiscount + tierDiscount + wholesaleDiscount + walletDiscount + loyaltyDiscount
       const msg = [
         `🛍️ *New Order — ${client.name}*`,
         `📋 Order No: *${reference}*`,
@@ -787,6 +797,14 @@ export default function CheckoutPage() {
                   <div>
                     <Label>Email Address *</Label>
                     <Input type="email" value={form.email} onChange={v => set('email', v)} onBlur={() => checkWalletBalance(form.email)} placeholder="you@example.com" />
+                    {customerTier && (() => {
+                      const tc = (client as any).pricingTiers?.find((t: any) => t.tag === customerTier)
+                      return tc ? (
+                        <p className="text-xs mt-1 font-semibold" style={{ color: tc.color }}>
+                          ✓ {tc.label} pricing applied — {tc.discountPercent}% off your order
+                        </p>
+                      ) : null
+                    })()}
                   </div>
                   <div>
                     <Label>Phone Number *</Label>
@@ -1078,6 +1096,9 @@ export default function CheckoutPage() {
                   <Row label="Subtotal" value={formatPrice(subtotal)} />
                   {discount > 0 && <Row label={`Coupon (${couponApplied})`} value={`-${formatPrice(discount)}`} accent />}
                   {autoDiscount && <Row label={autoDiscount.name} value={`-${formatPrice(autoDiscount.value)}`} accent />}
+                  {tierDiscount > 0 && activeTierConfig && (
+                    <Row label={`${activeTierConfig.label} (${activeTierConfig.discountPercent}% off)`} value={`-${formatPrice(tierDiscount)}`} accent />
+                  )}
                   {wholesaleDiscount > 0 && <Row label={`Wholesale (${client.wholesale?.discountPercent}% off)`} value={`-${formatPrice(wholesaleDiscount)}`} accent />}
                   {giftCardDiscount > 0 && <Row label={`Gift Card (${giftCardApplied})`} value={`-${formatPrice(giftCardDiscount)}`} accent />}
                   {walletDiscount > 0 && <Row label="Wallet Credit" value={`-${formatPrice(walletDiscount)}`} accent />}

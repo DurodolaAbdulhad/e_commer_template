@@ -1,21 +1,16 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getOrders } from '@/lib/admin-db'
+import { getOrders, getCustomerTierMap, setCustomerTier, removeCustomerTier } from '@/lib/admin-db'
 import { client } from '@/config/client'
-import { Users, Tag, X, Search } from 'lucide-react'
+import { Users, Search, ChevronDown } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { formatPrice } from '@/lib/utils'
 
 const ACCENT = '#e84c3d'
-const STORAGE_KEY = (email: string) => `customer_tags_${email.toLowerCase()}`
 
-function loadTags(email: string): string[] {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY(email)) ?? '[]') } catch { return [] }
-}
-
-function saveTags(email: string, tags: string[]) {
-  localStorage.setItem(STORAGE_KEY(email), JSON.stringify(tags))
-}
+const pricingTiers: Array<{ tag: string; label: string; discountPercent: number; color: string; minOrder?: number }> =
+  (client as any).pricingTiers ?? []
 
 type Customer = {
   email: string
@@ -23,21 +18,23 @@ type Customer = {
   phone: string
   orderCount: number
   totalSpent: number
-  tags: string[]
+  tier: string | null
 }
 
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState<Customer[]>([])
-  const [loading, setLoading]     = useState(true)
-  const [search, setSearch]       = useState('')
-  const [tagInput, setTagInput]   = useState<Record<string, string>>({})
-  const wholesaleTag = client.wholesale?.tag ?? 'wholesale'
+  const [customers, setCustomers]   = useState<Customer[]>([])
+  const [loading, setLoading]       = useState(true)
+  const [saving, setSaving]         = useState<Record<string, boolean>>({})
+  const [search, setSearch]         = useState('')
 
   useEffect(() => {
     async function load() {
       setLoading(true)
       try {
-        const orders = await getOrders()
+        const [orders, tierMap] = await Promise.all([
+          getOrders(),
+          getCustomerTierMap(),
+        ])
         const map = new Map<string, Customer>()
         for (const order of orders) {
           const email = order.address?.email || order.email || ''
@@ -53,7 +50,7 @@ export default function CustomersPage() {
               phone:      order.address?.phone || '',
               orderCount: 1,
               totalSpent: order.total ?? 0,
-              tags:       loadTags(email),
+              tier:       (tierMap as Record<string, string>)[email.toLowerCase()] ?? null,
             })
           }
         }
@@ -64,37 +61,34 @@ export default function CustomersPage() {
     load()
   }, [])
 
-  function addTag(email: string, tag: string) {
-    const clean = tag.trim().toLowerCase()
-    if (!clean) return
-    setCustomers(prev => prev.map(c => {
-      if (c.email !== email) return c
-      if (c.tags.includes(clean)) return c
-      const next = [...c.tags, clean]
-      saveTags(email, next)
-      return { ...c, tags: next }
-    }))
-    setTagInput(prev => ({ ...prev, [email]: '' }))
-    toast.success(`Tag "${clean}" added`)
-  }
-
-  function removeTag(email: string, tag: string) {
-    setCustomers(prev => prev.map(c => {
-      if (c.email !== email) return c
-      const next = c.tags.filter(t => t !== tag)
-      saveTags(email, next)
-      return { ...c, tags: next }
-    }))
-  }
-
-  function toggleWholesale(email: string, hasWholesale: boolean) {
-    if (hasWholesale) removeTag(email, wholesaleTag)
-    else addTag(email, wholesaleTag)
+  async function handleTierChange(email: string, tier: string) {
+    setSaving(prev => ({ ...prev, [email]: true }))
+    try {
+      if (tier === '') {
+        await removeCustomerTier(email)
+        setCustomers(prev => prev.map(c => c.email === email ? { ...c, tier: null } : c))
+        toast.success('Tier removed')
+      } else {
+        await setCustomerTier(email, tier)
+        setCustomers(prev => prev.map(c => c.email === email ? { ...c, tier } : c))
+        const tierLabel = pricingTiers.find(t => t.tag === tier)?.label ?? tier
+        toast.success(`${tierLabel} tier assigned`)
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to save tier')
+    }
+    setSaving(prev => ({ ...prev, [email]: false }))
   }
 
   const filtered = customers.filter(c =>
     !search || c.email.toLowerCase().includes(search.toLowerCase()) || c.name.toLowerCase().includes(search.toLowerCase())
   )
+
+  const tierColor = (tag: string | null) => {
+    if (!tag) return { bg: '#f3f4f6', text: '#6b7280' }
+    const t = pricingTiers.find(t => t.tag === tag)
+    return t ? { bg: `${t.color}18`, text: t.color } : { bg: '#f3f4f6', text: '#6b7280' }
+  }
 
   return (
     <div className="space-y-5">
@@ -103,10 +97,24 @@ export default function CustomersPage() {
         <div>
           <h1 className="text-lg font-bold text-gray-800">Customers</h1>
           <p className="text-xs text-gray-400 mt-0.5">
-            {customers.length} unique customers from orders. Assign tags like &ldquo;{wholesaleTag}&rdquo; to unlock wholesale pricing.
+            {customers.length} unique customers · assign pricing tiers for reseller / distributor discounts
           </p>
         </div>
       </div>
+
+      {/* Tier legend */}
+      {pricingTiers.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {pricingTiers.map(t => (
+            <div key={t.tag}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border"
+              style={{ color: t.color, borderColor: `${t.color}40`, backgroundColor: `${t.color}10` }}>
+              <span>{t.label}</span>
+              <span className="opacity-60">— {t.discountPercent}% off{t.minOrder ? ` on orders ≥ ${formatPrice(t.minOrder)}` : ''}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Search */}
       <div className="relative">
@@ -136,15 +144,13 @@ export default function CustomersPage() {
                 <th className="text-left px-5 py-3">Customer</th>
                 <th className="text-left px-4 py-3 hidden sm:table-cell">Orders</th>
                 <th className="text-left px-4 py-3 hidden md:table-cell">Total Spent</th>
-                <th className="text-left px-4 py-3">Tags</th>
-                {client.wholesale?.enabled && (
-                  <th className="text-center px-4 py-3 hidden lg:table-cell">Wholesale</th>
-                )}
+                <th className="text-left px-4 py-3">Pricing Tier</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map(c => {
-                const hasWholesale = c.tags.includes(wholesaleTag)
+                const colors = tierColor(c.tier)
+                const tierLabel = c.tier ? (pricingTiers.find(t => t.tag === c.tier)?.label ?? c.tier) : null
                 return (
                   <tr key={c.email} className="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors">
                     {/* Customer */}
@@ -161,59 +167,43 @@ export default function CustomersPage() {
 
                     {/* Total spent */}
                     <td className="px-4 py-3 hidden md:table-cell">
-                      <span className="text-sm font-medium text-gray-700">
-                        ₦{c.totalSpent.toLocaleString()}
-                      </span>
+                      <span className="text-sm font-medium text-gray-700">{formatPrice(c.totalSpent)}</span>
                     </td>
 
-                    {/* Tags */}
+                    {/* Tier selector */}
                     <td className="px-4 py-3">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {c.tags.map(tag => (
-                          <span key={tag}
-                            className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full"
-                            style={{
-                              backgroundColor: tag === wholesaleTag ? '#eff6ff' : '#f3f4f6',
-                              color: tag === wholesaleTag ? '#2563eb' : '#374151',
-                            }}>
-                            {tag}
-                            <button onClick={() => removeTag(c.email, tag)}
-                              className="hover:text-red-500 transition-colors">
-                              <X size={10} />
-                            </button>
+                      <div className="flex items-center gap-2">
+                        {tierLabel && (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold"
+                            style={{ backgroundColor: colors.bg, color: colors.text }}>
+                            {tierLabel}
                           </span>
-                        ))}
-                        <div className="flex items-center gap-1">
-                          <input
-                            value={tagInput[c.email] ?? ''}
-                            onChange={e => setTagInput(prev => ({ ...prev, [c.email]: e.target.value }))}
-                            onKeyDown={e => e.key === 'Enter' && addTag(c.email, tagInput[c.email] ?? '')}
-                            placeholder="+ tag"
-                            className="w-16 px-1.5 py-0.5 text-xs border border-dashed border-gray-300 rounded outline-none focus:border-gray-400"
-                          />
-                          {(tagInput[c.email] ?? '').trim() && (
-                            <button onClick={() => addTag(c.email, tagInput[c.email] ?? '')}
-                              className="text-xs font-bold px-1.5 py-0.5 rounded text-white"
-                              style={{ backgroundColor: ACCENT }}>
-                              Add
-                            </button>
-                          )}
-                        </div>
+                        )}
+                        {pricingTiers.length > 0 ? (
+                          <div className="relative">
+                            <select
+                              value={c.tier ?? ''}
+                              onChange={e => handleTierChange(c.email, e.target.value)}
+                              disabled={saving[c.email]}
+                              className="appearance-none text-xs border border-gray-200 rounded-lg pl-2.5 pr-6 py-1.5 outline-none focus:border-gray-400 bg-white text-gray-600 disabled:opacity-50 cursor-pointer"
+                            >
+                              <option value="">No tier</option>
+                              {pricingTiers.map(t => (
+                                <option key={t.tag} value={t.tag}>
+                                  {t.label} ({t.discountPercent}% off)
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400 italic">No tiers configured</span>
+                        )}
+                        {saving[c.email] && (
+                          <div className="w-3 h-3 rounded-full border border-gray-300 border-t-gray-600 animate-spin" />
+                        )}
                       </div>
                     </td>
-
-                    {/* Wholesale toggle */}
-                    {client.wholesale?.enabled && (
-                      <td className="px-4 py-3 text-center hidden lg:table-cell">
-                        <button
-                          onClick={() => toggleWholesale(c.email, hasWholesale)}
-                          className="w-11 h-6 rounded-full transition-colors relative"
-                          style={{ backgroundColor: hasWholesale ? '#2563eb' : '#d1d5db' }}>
-                          <span className="absolute top-1 transition-all w-4 h-4 bg-white rounded-full shadow"
-                            style={{ left: hasWholesale ? '26px' : '4px' }} />
-                        </button>
-                      </td>
-                    )}
                   </tr>
                 )
               })}
@@ -223,7 +213,8 @@ export default function CustomersPage() {
       </div>
 
       <p className="text-xs text-gray-400">
-        Tags are stored locally. When Supabase is connected, tags sync to customer profiles automatically.
+        Tier assignments are stored in the database and applied automatically at checkout when a customer enters their email.
+        {pricingTiers.length === 0 && ' Configure pricing tiers in the client config (pricingTiers array).'}
       </p>
     </div>
   )
