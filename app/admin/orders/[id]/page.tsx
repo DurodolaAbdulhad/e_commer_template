@@ -5,7 +5,8 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { ArrowLeft, MapPin, Phone, Mail, Package, MessageSquare, Truck } from 'lucide-react'
-import { getOrder, updateOrderStatus } from '@/lib/admin-db'
+import { getOrder, updateOrderStatus, getStoreSetting } from '@/lib/admin-db'
+import { client as storeClient } from '@/config/client'
 import { formatPrice } from '@/lib/utils'
 import toast from 'react-hot-toast'
 
@@ -37,6 +38,7 @@ export default function AdminOrderDetailPage() {
   const [shipWeight,        setShipWeight]        = useState('1')
   const [booking,           setBooking]           = useState(false)
   const [waybill,           setWaybill]           = useState<{ number: string; url?: string } | null>(null)
+  const [shipOrigin,        setShipOrigin]        = useState<Record<string, string> | null>(null)
 
   useEffect(() => {
     getOrder(id).then(o => {
@@ -45,6 +47,21 @@ export default function AdminOrderDetailPage() {
       setTrackingNotes(o?.tracking_notes || '')
       if (o?.waybill_number) setWaybill({ number: o.waybill_number, url: o.tracking_url })
       setLoading(false)
+    })
+    Promise.all([
+      getStoreSetting('shipping_origin_name'),
+      getStoreSetting('shipping_origin_phone'),
+      getStoreSetting('shipping_origin_address'),
+      getStoreSetting('shipping_origin_city'),
+      getStoreSetting('shipping_origin_state'),
+    ]).then(([name, phone, address, city, state]) => {
+      setShipOrigin({
+        name:    (name    as string | null) ?? storeClient.name ?? 'Store',
+        phone:   (phone   as string | null) ?? '',
+        address: (address as string | null) ?? '',
+        city:    (city    as string | null) ?? '',
+        state:   (state   as string | null) ?? 'Lagos',
+      })
     })
   }, [id])
 
@@ -83,11 +100,11 @@ export default function AdminOrderDetailPage() {
     setBooking(true)
     try {
       const origin = {
-        name:    order?.business_name ?? 'Store',
-        phone:   process.env.NEXT_PUBLIC_STORE_PHONE ?? '08000000000',
-        address: process.env.NEXT_PUBLIC_STORE_ADDRESS ?? 'Lagos, Nigeria',
-        city:    process.env.NEXT_PUBLIC_STORE_CITY    ?? 'Lagos',
-        state:   process.env.NEXT_PUBLIC_STORE_STATE   ?? 'Lagos',
+        name:    shipOrigin?.name    || storeClient.name || 'Store',
+        phone:   shipOrigin?.phone   || '',
+        address: shipOrigin?.address || '',
+        city:    shipOrigin?.city    || '',
+        state:   shipOrigin?.state   || 'Lagos',
       }
       const destination = {
         name:    addr.fullName || [addr.firstName, addr.lastName].filter(Boolean).join(' ') || 'Customer',

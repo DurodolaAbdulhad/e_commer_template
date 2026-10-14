@@ -119,6 +119,12 @@ export default function ShippingPage() {
   const [selfLogisticsNote,      setSelfLogisticsNote]      = useState('Choose a logistics provider below to book your own delivery. Once booked, send us your tracking number.')
   const [selfLogisticsFee,       setSelfLogisticsFee]       = useState(0)
   const [providers,              setProviders]              = useState<Provider[]>(DEFAULT_PROVIDERS)
+  // Dispatch origin (used when booking waybills via 3PL providers)
+  const [originName,    setOriginName]    = useState(client.name ?? '')
+  const [originPhone,   setOriginPhone]   = useState('')
+  const [originAddress, setOriginAddress] = useState('')
+  const [originCity,    setOriginCity]    = useState('')
+  const [originState,   setOriginState]   = useState('Lagos')
   // 3PL API Keys
   const [sendboxKey,     setSendboxKey]     = useState('')
   const [gigClientId,    setGigClientId]    = useState('')
@@ -147,6 +153,11 @@ export default function ShippingPage() {
     getStoreSetting('self_logistics_note').then(v    => { if (v) setSelfLogisticsNote(v) })
     getStoreSetting('self_logistics_fee').then(v     => { if (v !== null) setSelfLogisticsFee(Number(v)) })
     getStoreSetting('logistics_providers').then(v    => { if (v && Array.isArray(v) && v.length > 0) setProviders(v) })
+    getStoreSetting('shipping_origin_name').then(v    => { if (v) setOriginName(v as string) })
+    getStoreSetting('shipping_origin_phone').then(v   => { if (v) setOriginPhone(v as string) })
+    getStoreSetting('shipping_origin_address').then(v => { if (v) setOriginAddress(v as string) })
+    getStoreSetting('shipping_origin_city').then(v    => { if (v) setOriginCity(v as string) })
+    getStoreSetting('shipping_origin_state').then(v   => { if (v) setOriginState(v as string) })
     getStoreSetting('sendbox_api_key').then(v    => { if (v) setSendboxKey(v) })
     getStoreSetting('gig_client_id').then(v      => { if (v) setGigClientId(v) })
     getStoreSetting('gig_client_secret').then(v  => { if (v) setGigClientSec(v) })
@@ -188,6 +199,11 @@ export default function ShippingPage() {
       await saveStoreSetting('self_logistics_note',     selfLogisticsNote)
       await saveStoreSetting('self_logistics_fee',      selfLogisticsFee)
       await saveStoreSetting('logistics_providers',     providers.filter(p => p.name.trim()))
+      await saveStoreSetting('shipping_origin_name',    originName.trim())
+      await saveStoreSetting('shipping_origin_phone',   originPhone.trim())
+      await saveStoreSetting('shipping_origin_address', originAddress.trim())
+      await saveStoreSetting('shipping_origin_city',    originCity.trim())
+      await saveStoreSetting('shipping_origin_state',   originState.trim())
       await saveStoreSetting('sendbox_api_key',    sendboxKey.trim())
       await saveStoreSetting('gig_client_id',      gigClientId.trim())
       await saveStoreSetting('gig_client_secret',  gigClientSec.trim())
@@ -490,6 +506,41 @@ export default function ShippingPage() {
           <textarea value={returnPolicy} onChange={e => { setReturnPolicy(e.target.value); setSaved(false) }}
             placeholder="Describe your return conditions…" rows={3}
             className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400 resize-none" />
+        </Row>
+      </Section>
+
+      {/* Dispatch Origin */}
+      <Section title="Dispatch / Sender Address" icon={MapPin}>
+        <div className="py-3 mb-1">
+          <p className="text-xs text-gray-500 leading-relaxed">
+            This address is sent to couriers as the pickup / collection point when you book a waybill from an order.
+          </p>
+        </div>
+        <Row label="Sender Name" hint="Store or warehouse name shown on waybills">
+          <input value={originName} onChange={e => { setOriginName(e.target.value); setSaved(false) }}
+            placeholder={client.name ?? 'Store Name'}
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400" />
+        </Row>
+        <Row label="Phone" hint="Contact number for courier pickup calls">
+          <input value={originPhone} onChange={e => { setOriginPhone(e.target.value); setSaved(false) }}
+            placeholder="e.g. 08012345678"
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400 font-mono" />
+        </Row>
+        <Row label="Street Address" hint="House/block number and street name">
+          <input value={originAddress} onChange={e => { setOriginAddress(e.target.value); setSaved(false) }}
+            placeholder="e.g. 12 Akin Adesola Street, Victoria Island"
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400" />
+        </Row>
+        <Row label="City">
+          <input value={originCity} onChange={e => { setOriginCity(e.target.value); setSaved(false) }}
+            placeholder="e.g. Lagos"
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400" />
+        </Row>
+        <Row label="State">
+          <select value={originState} onChange={e => { setOriginState(e.target.value); setSaved(false) }}
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400 bg-white">
+            {NIGERIA_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
         </Row>
       </Section>
 
