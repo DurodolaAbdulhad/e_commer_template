@@ -59,17 +59,30 @@ export default function CheckoutPage() {
   const [loyaltyPoints,    setLoyaltyPoints]    = useState(0)
   const [loyaltyApplied,   setLoyaltyApplied]   = useState(false)
   const [loading,          setLoading]          = useState(false)
-  const [paymentMethod,    setPaymentMethod]    = useState<'online' | 'pod' | 'bank' | 'whatsapp'>(
+  const [klumpLoaded,      setKlumpLoaded]      = useState(false)
+  const [paymentMethod,    setPaymentMethod]    = useState<'online' | 'pod' | 'bank' | 'whatsapp' | 'bnpl'>(
     () => (searchParams.get('method') === 'whatsapp' && client.features?.whatsappOrder && client.whatsapp) ? 'whatsapp' : 'online'
   )
   const [mounted,          setMounted]          = useState(false)
   const [shippingSettings,    setShippingSettings]    = useState<any>(null)
   const [shipMethod,          setShipMethod]          = useState<'store' | 'self' | 'pickup'>('store')
   const [selectedPickupPoint, setSelectedPickupPoint] = useState<string>((client as any).pickupPoints?.[0]?.id ?? '')
+  const klumpKey = process.env.NEXT_PUBLIC_KLUMP_PUBLIC_KEY
+
   useEffect(() => {
     setMounted(true)
     loadShippingSettings().then(s => setShippingSettings(s)).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!klumpKey) return
+    if (typeof window !== 'undefined' && (window as any).Klump) { setKlumpLoaded(true); return }
+    const script = document.createElement('script')
+    script.src = 'https://js.klump.io/klump.js'
+    script.async = true
+    script.onload = () => setKlumpLoaded(true)
+    document.head.appendChild(script)
+  }, [klumpKey])
 
   // Auto-discount — re-evaluate whenever subtotal changes
   useEffect(() => {
@@ -559,6 +572,84 @@ export default function CheckoutPage() {
     }
   }
 
+  async function handleBNPL() {
+    if ((items as any).length === 0) return toast.error('Your cart is empty')
+    if (!validate()) return
+    if (!klumpLoaded || !(window as any).Klump) {
+      toast.error('Installment service not ready — please refresh the page and try again.')
+      return
+    }
+    setLoading(true)
+    const reference = generateOrderNumber()
+    try {
+      if (giftCardApplied && giftCardDiscount > 0) {
+        try { await redeemGiftCard(giftCardApplied, giftCardDiscount) } catch {}
+      }
+      const orderItems = (items as any[]).map((i: any) => ({
+        id: i.id, name: i.name, price: i.price, quantity: i.quantity,
+        variant: i.variant ?? null, image: i.images?.[0] ?? null,
+      }))
+      const orderAddress = shipMethod === 'pickup'
+        ? { fullName: form.fullName, email: form.email, phone: form.phone, address: null, city: null, state: null, area: null, country: 'Nigeria', notes: form.notes || null }
+        : { fullName: form.fullName, email: form.email, phone: form.phone, address: form.address, city: form.city, state: form.state, area: form.area || null, country: form.country, notes: form.notes }
+      new (window as any).Klump({
+        publicKey: klumpKey,
+        data: {
+          amount: total,
+          shipping_fee: 0,
+          currency: 'NGN',
+          merchant_reference: reference,
+          meta_data: {
+            customer: { name: form.fullName, email: form.email, phone: form.phone },
+          },
+        },
+        onSuccess: async (_data: any) => {
+          const orderData = {
+            order_number: reference,
+            status: 'pending',
+            items: orderItems,
+            subtotal,
+            shipping_cost: merchantShipping,
+            discount: discount + (autoDiscount?.value ?? 0) + giftCardDiscount + wholesaleDiscount + walletDiscount + loyaltyDiscount,
+            vat: vatAmount,
+            total,
+            price_sig: null,
+            address: orderAddress,
+            payment_method: 'bnpl',
+            payment_reference: reference,
+            coupon_code: couponApplied || null,
+            gift_card_code: giftCardApplied || null,
+            auto_discount: autoDiscount?.name || null,
+            delivery_method: shipMethod === 'self' ? 'self_logistics' : shipMethod === 'pickup' ? 'pickup' : 'store_delivery',
+            pickup_point_id: shipMethod === 'pickup' ? selectedPickupPoint : null,
+            pickup_point_name: shipMethod === 'pickup' ? pickupPoints.find(p => p.id === selectedPickupPoint)?.name ?? null : null,
+          }
+          localStorage.setItem(`order_${reference}`, JSON.stringify({
+            order_number: reference, status: 'pending', total,
+            items: orderItems, payment_method: 'bnpl',
+            address: { fullName: form.fullName, email: form.email, phone: form.phone, city: form.city, state: form.state },
+          }))
+          try {
+            const supabase = createClient()
+            await supabase.from('orders').insert(orderData)
+          } catch {}
+          dispatch({ type: 'CLEAR_CART' })
+          router.push(`/order/${reference}`)
+        },
+        onError: (_data: any) => {
+          toast.error('Installment payment could not be processed. Please try another payment method.')
+          setLoading(false)
+        },
+        onClose: () => {
+          setLoading(false)
+        },
+      })
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to start installment payment. Please try again.')
+      setLoading(false)
+    }
+  }
+
   async function handleWhatsApp() {
     if ((items as any).length === 0) return toast.error('Your cart is empty')
     if (!validate()) return
@@ -1001,10 +1092,10 @@ export default function CheckoutPage() {
                 </div>
 
                 {/* Payment method selector */}
-                {(client.features?.payOnDelivery || client.features?.bankTransfer || (client.features?.whatsappOrder && client.whatsapp)) && (
+                {(client.features?.payOnDelivery || client.features?.bankTransfer || (client.features?.whatsappOrder && client.whatsapp) || (klumpKey && total >= 10000)) && (
                   <div className="mb-4 space-y-2">
                     <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Payment Method</p>
-                    <div className={`grid gap-2 ${[client.features?.payOnDelivery, client.features?.bankTransfer, client.features?.whatsappOrder && client.whatsapp].filter(Boolean).length >= 3 ? 'grid-cols-2' : 'grid-cols-2'}`}>
+                    <div className="grid grid-cols-2 gap-2">
                       <button type="button" onClick={() => setPaymentMethod('online')}
                         className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-xl border-2 text-xs font-semibold transition-colors"
                         style={{
@@ -1051,6 +1142,18 @@ export default function CheckoutPage() {
                           WhatsApp
                         </button>
                       )}
+                      {klumpKey && total >= 10000 && (
+                        <button type="button" onClick={() => setPaymentMethod('bnpl')}
+                          className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-xl border-2 text-xs font-semibold transition-colors"
+                          style={{
+                            borderColor: paymentMethod === 'bnpl' ? '#7c3aed' : '#e5e7eb',
+                            color: paymentMethod === 'bnpl' ? '#7c3aed' : '#6b7280',
+                            backgroundColor: paymentMethod === 'bnpl' ? '#f5f3ff' : '#fff',
+                          }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+                          Installments
+                        </button>
+                      )}
                     </div>
                     {paymentMethod === 'pod' && (
                       <p className="text-[11px] text-gray-500 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
@@ -1060,6 +1163,11 @@ export default function CheckoutPage() {
                     {paymentMethod === 'whatsapp' && (
                       <p className="text-[11px] text-gray-500 bg-green-50 border border-green-100 rounded-lg px-3 py-2">
                         💬 Your order details will be sent to our WhatsApp. We&apos;ll confirm and arrange payment with you directly.
+                      </p>
+                    )}
+                    {paymentMethod === 'bnpl' && (
+                      <p className="text-[11px] text-gray-500 bg-violet-50 border border-violet-100 rounded-lg px-3 py-2">
+                        ✨ Pay in installments powered by Klump. Pay 25% today, spread the rest over time — no hidden fees.
                       </p>
                     )}
                     {paymentMethod === 'bank' && (client as any).bankTransfer && (
@@ -1143,6 +1251,28 @@ export default function CheckoutPage() {
                       </>
                     )}
                   </button>
+                ) : paymentMethod === 'bnpl' ? (
+                  <button
+                    onClick={handleBNPL}
+                    disabled={loading || !klumpLoaded}
+                    className="w-full py-3.5 text-white font-bold text-sm rounded-lg flex items-center justify-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-70 disabled:cursor-not-allowed"
+                    style={{ backgroundColor: '#7c3aed' }}
+                  >
+                    {loading ? (
+                      <>
+                        <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                        </svg>
+                        Opening installment plan...
+                      </>
+                    ) : (
+                      <>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+                        Pay in Installments — {formatPrice(total)} via Klump
+                      </>
+                    )}
+                  </button>
                 ) : (
                   <button
                     onClick={handlePayNow}
@@ -1174,9 +1304,11 @@ export default function CheckoutPage() {
                       ? 'Order confirmed · Cash collected at your door'
                       : paymentMethod === 'bank'
                         ? 'Transfer exact amount · Upload receipt on confirmation page'
-                        : client.paymentGateway === 'flutterwave'
-                          ? 'Secured by Flutterwave · Visa · Mastercard · Verve · USSD'
-                          : 'Secured by Paystack · Visa · Mastercard · Verve'}
+                        : paymentMethod === 'bnpl'
+                          ? 'Powered by Klump · Pay 25% today · Zero hidden fees'
+                          : client.paymentGateway === 'flutterwave'
+                            ? 'Secured by Flutterwave · Visa · Mastercard · Verve · USSD'
+                            : 'Secured by Paystack · Visa · Mastercard · Verve'}
                 </p>
               </div>
             </div>
