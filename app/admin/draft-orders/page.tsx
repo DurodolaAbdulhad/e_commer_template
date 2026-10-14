@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { getDraftOrders, createDraftOrder, updateDraftOrder, deleteDraftOrder, getProducts } from '@/lib/admin-db'
-import { FileText, Plus, Trash2, Send, X } from 'lucide-react'
+import { FileText, Plus, Trash2, Send, X, MessageCircle } from 'lucide-react'
 import { formatPrice, generateOrderNumber } from '@/lib/utils'
+import { client } from '@/config/client'
 import toast from 'react-hot-toast'
 
 const ACCENT = '#e84c3d'
@@ -78,6 +79,29 @@ export default function DraftOrdersPage() {
     } catch { toast.error('Failed') }
   }
 
+  function sendDraftWhatsApp(draft: any) {
+    const phone = (draft.customer_phone ?? '').replace(/\D/g, '')
+    if (!phone) { toast.error('No phone number on this draft order'); return }
+    const itemLines = (draft.items ?? []).map((i: any) =>
+      `• ${i.name}${i.variant ? ` (${i.variant})` : ''} × ${i.quantity} — ${formatPrice(i.price * i.quantity)}`
+    ).join('\n')
+    const msg = [
+      `🛍️ *${client.name} — Order Confirmation*`,
+      `📋 Order No: *${draft.order_number}*`,
+      ``,
+      `Hi ${draft.customer_name},`,
+      `Thank you for your order! Here's your summary:`,
+      ``,
+      itemLines,
+      ``,
+      `💰 *Total: ${formatPrice(draft.total ?? draft.subtotal)}*`,
+      draft.notes ? `📝 Notes: ${draft.notes}` : null,
+      ``,
+      `Please reply to confirm or to arrange payment and delivery. Thank you! 🙏`,
+    ].filter(l => l !== null).join('\n')
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')
+  }
+
   async function handleDelete(id: string) {
     if (!confirm('Delete this draft?')) return
     try { await deleteDraftOrder(id); toast.success('Deleted'); load() } catch { toast.error('Failed') }
@@ -125,9 +149,16 @@ export default function DraftOrdersPage() {
                 </span>
                 <div className="flex items-center gap-1.5">
                   {d.status === 'draft' && (
-                    <button onClick={() => convertToOrder(d)} title="Convert to order"
+                    <button onClick={() => convertToOrder(d)} title="Confirm order"
                       className="text-blue-400 hover:text-blue-700 transition-colors"><Send size={14} /></button>
                   )}
+                  <button
+                    onClick={() => sendDraftWhatsApp(d)}
+                    title="Send to customer via WhatsApp"
+                    className="text-green-400 hover:text-green-600 transition-colors"
+                  >
+                    <MessageCircle size={14} />
+                  </button>
                   <button onClick={() => handleDelete(d.id)} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
                 </div>
               </div>
