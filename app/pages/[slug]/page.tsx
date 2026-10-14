@@ -564,9 +564,12 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params
   const page = getPage(slug)
   if (!page) return { title: `${client.name}` }
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
   return {
     title: `${page.title} | ${client.name}`,
     description: page.description,
+    alternates: { canonical: `${siteUrl}/pages/${slug}` },
+    openGraph: { title: `${page.title} | ${client.name}`, description: page.description, url: `${siteUrl}/pages/${slug}`, type: 'website' },
   }
 }
 
@@ -609,8 +612,22 @@ export default async function StaticPage({ params }: { params: Promise<{ slug: s
     }
   }
 
+  // FAQPage JSON-LD for /pages/faq — AEO: makes Google show Q&A in search results
+  const faqJsonLd = slug === 'faq' ? {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: [
+      { '@type': 'Question', name: 'How long does delivery take?', acceptedAnswer: { '@type': 'Answer', text: `Standard delivery takes ${client.shipping?.estimatedDays ?? '2–7 business days'} in Nigeria.` } },
+      { '@type': 'Question', name: 'What payment methods do you accept?', acceptedAnswer: { '@type': 'Answer', text: 'We accept debit/credit cards (Visa, Mastercard, Verve), bank transfers, USSD, and Pay on Delivery in select areas — all secured by Paystack.' } },
+      { '@type': 'Question', name: 'What is your return policy?', acceptedAnswer: { '@type': 'Answer', text: 'We accept returns within 7 days of delivery for items in original, unused condition with packaging intact.' } },
+      { '@type': 'Question', name: 'Are all products genuine?', acceptedAnswer: { '@type': 'Answer', text: 'Yes. We source directly from authorised distributors and verified suppliers. All products are 100% authentic.' } },
+      { '@type': 'Question', name: 'Do you deliver nationwide?', acceptedAnswer: { '@type': 'Answer', text: 'Yes, we deliver to all 36 states in Nigeria. Delivery fees vary by location and are shown at checkout.' } },
+    ],
+  } : null
+
   return (
     <>
+      {faqJsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />}
       <Header />
       <PageBox>
         <div className="px-6 py-8">

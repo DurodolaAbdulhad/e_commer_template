@@ -137,6 +137,39 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const category = product.categories
   const siteUrl  = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
 
+  const breadcrumbSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
+      { '@type': 'ListItem', position: 2, name: 'Shop', item: `${siteUrl}/shop` },
+      ...(category ? [{ '@type': 'ListItem', position: 3, name: category.name, item: `${siteUrl}/shop?category=${category.slug}` }] : []),
+      { '@type': 'ListItem', position: category ? 4 : 3, name: product.name, item: `${siteUrl}/shop/${slug}` },
+    ],
+  }
+
+  const faqSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: [
+      {
+        '@type': 'Question',
+        name: `How long does delivery take for ${product.name}?`,
+        acceptedAnswer: { '@type': 'Answer', text: `Delivery for ${product.name} typically takes ${client.shipping?.estimatedDays || '2–7 business days'} across Nigeria. Free shipping on orders above ₦${(client.shipping?.freeAbove ?? 50000).toLocaleString()}.` },
+      },
+      {
+        '@type': 'Question',
+        name: `What payment methods can I use to buy ${product.name}?`,
+        acceptedAnswer: { '@type': 'Answer', text: `You can pay for ${product.name} using card (Visa, Mastercard, Verve), bank transfer, USSD, or Pay on Delivery — all secured by Paystack.` },
+      },
+      {
+        '@type': 'Question',
+        name: `Can I return ${product.name} if it doesn't fit?`,
+        acceptedAnswer: { '@type': 'Answer', text: `Yes. ${client.name} accepts returns within 7 days of delivery. The item must be unused and in its original packaging. Contact us at ${client.email || client.name} to start a return.` },
+      },
+    ],
+  }
+
   const productSchema = {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -160,7 +193,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify([productSchema, breadcrumbSchema, faqSchema]) }} />
       <Header />
       <PageBox>
         <main className="px-4 sm:px-6 py-5">
