@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabase
     .from('orders')
-    .select('id, order_number, status, created_at, updated_at, items, total, shipping_address, address, payment_method, receipt_url, tracking_notes')
+    .select('id, order_number, status, created_at, updated_at, items, total, shipping_address, address, payment_method, receipt_url, tracking_notes, waybill_number, tracking_url')
     .eq('order_number', orderNumber.trim().toUpperCase())
     .eq('email', email.trim().toLowerCase())
     .maybeSingle()
@@ -49,6 +49,8 @@ export async function POST(req: NextRequest) {
       payment_method:   data.payment_method ?? 'online',
       receipt_url:      data.receipt_url ?? null,
       tracking_notes:   data.tracking_notes ?? null,
+      waybill_number:   data.waybill_number ?? null,
+      tracking_url:     data.tracking_url ?? null,
     },
   })
 }

@@ -28,7 +28,8 @@ export async function sendAbandonedCartSMS(phone: string, firstName: string, sto
   await sendSMS(phone, msg, storeName.slice(0, 11))
 }
 
-export async function sendShippingUpdateSMS(phone: string, orderNumber: string, status: string, storeName: string) {
-  const msg = `${storeName}: Your order ${orderNumber} is now ${status}. Track your delivery in your account.`
+export async function sendShippingUpdateSMS(phone: string, orderNumber: string, status: string, storeName: string, trackUrl?: string) {
+  const trackPart = trackUrl ? ` Track: ${trackUrl}` : ' Track at: /track'
+  const msg = `${storeName}: Your order ${orderNumber} is now ${status}.${trackPart}`
   await sendSMS(phone, msg, storeName.slice(0, 11))
 }

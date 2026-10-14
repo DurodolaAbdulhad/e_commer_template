@@ -68,7 +68,11 @@ export async function PATCH(req: NextRequest) {
       }
       if (['shipped', 'delivered'].includes(status) && order?.phone && process.env.TERMII_API_KEY) {
         const orderRef = order.order_number ?? order.payment_reference ?? order.id
-        await sendShippingUpdateSMS(order.phone, orderRef, status, storeConfig.name)
+        const siteUrl  = process.env.NEXT_PUBLIC_SITE_URL || `https://${storeConfig.domain}`
+        const trackUrl = status === 'shipped' && order.email
+          ? `${siteUrl}/track?order=${encodeURIComponent(orderRef)}&email=${encodeURIComponent(order.email)}`
+          : undefined
+        await sendShippingUpdateSMS(order.phone, orderRef, status, storeConfig.name, trackUrl)
       }
     } catch (e) {
       console.error('[orders PATCH] notification error:', (e as any)?.message?.slice(0, 200))
@@ -98,16 +102,26 @@ const STATUS_MESSAGE: Record<string, string> = {
 
 async function sendStatusEmail(order: any, status: string) {
   const RESEND_KEY = process.env.RESEND_API_KEY
-  const FROM       = process.env.EMAIL_FROM || 'orders@mynnatapparels.com.ng'
+  const FROM       = process.env.EMAIL_FROM || storeConfig.email || 'orders@store.com'
   if (!RESEND_KEY) return
 
-  const storeName   = 'Mynnat Luxe Collections'
-  const orderNumber = order.order_number || order.payment_reference || order.id
-  const customerName = order.shipping_address?.fullName || 'Customer'
-  const toEmail     = order.email
-  const color       = STATUS_COLOR[status] ?? '#111'
-  const message     = STATUS_MESSAGE[status] ?? `Your order status has been updated to: ${status}`
-  const subject     = `${STATUS_SUBJECT[status] ?? `Order Update`} — #${orderNumber}`
+  const storeName    = storeConfig.name
+  const siteUrl      = process.env.NEXT_PUBLIC_SITE_URL || `https://${storeConfig.domain}`
+  const orderNumber  = order.order_number || order.payment_reference || order.id
+  const customerName = order.address?.fullName || order.shipping_address?.fullName || 'Customer'
+  const toEmail      = order.email
+  const color        = STATUS_COLOR[status] ?? '#111'
+  const message      = STATUS_MESSAGE[status] ?? `Your order status has been updated to: ${status}`
+  const subject      = `${STATUS_SUBJECT[status] ?? 'Order Update'} — #${orderNumber}`
+
+  // Deep-link to the track page for shipped orders
+  const trackUrl = status === 'shipped' && toEmail
+    ? `${siteUrl}/track?order=${encodeURIComponent(orderNumber)}&email=${encodeURIComponent(toEmail)}`
+    : null
+
+  // Courier tracking link if available
+  const courierTrackUrl = order.tracking_url ?? null
+  const waybillNumber   = order.waybill_number ?? null
 
   const html = `<!DOCTYPE html>
 <html>
@@ -129,10 +143,13 @@ async function sendStatusEmail(order: any, status: string) {
             </div>
             <h2 style="margin:0 0 12px;color:#111;font-size:20px;font-weight:800;">Hi ${customerName},</h2>
             <p style="margin:0 0 24px;color:#555;font-size:15px;line-height:1.7;">${message}</p>
-            <div style="background:#f9f9f9;border-radius:8px;padding:16px;text-align:left;">
+            <div style="background:#f9f9f9;border-radius:8px;padding:16px;text-align:left;margin-bottom:${trackUrl || courierTrackUrl ? '24px' : '0'};">
               <p style="margin:0;font-size:13px;color:#888;">Order Number</p>
               <p style="margin:4px 0 0;font-size:16px;font-weight:800;color:#111;">#${orderNumber}</p>
+              ${waybillNumber ? `<p style="margin:8px 0 0;font-size:13px;color:#888;">Waybill: <strong style="color:#111;">${waybillNumber}</strong></p>` : ''}
             </div>
+            ${trackUrl ? `<a href="${trackUrl}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;font-weight:800;font-size:14px;padding:14px 32px;border-radius:8px;margin-bottom:${courierTrackUrl ? '12px' : '0'};">Track Your Order →</a>` : ''}
+            ${courierTrackUrl ? `<br><a href="${courierTrackUrl}" style="display:inline-block;background:#fff;color:#7c3aed;text-decoration:none;font-weight:700;font-size:13px;padding:12px 24px;border-radius:8px;border:2px solid #7c3aed;">Track with Courier →</a>` : ''}
           </td>
         </tr>
         <tr>

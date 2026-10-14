@@ -287,6 +287,29 @@ function TrackOrderContent() {
             </div>
           )}
 
+          {/* Courier tracking link (populated when admin books a waybill) */}
+          {order.tracking_url && order.status === 'shipped' && (
+            <div className="flex items-center justify-between gap-3 p-4 bg-violet-50 border border-violet-200 rounded-xl">
+              <div className="flex items-start gap-2.5">
+                <Truck size={15} className="text-violet-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-violet-800">Your package is on its way</p>
+                  {order.waybill_number && (
+                    <p className="text-xs text-violet-600 mt-0.5">Waybill: <span className="font-bold">{order.waybill_number}</span></p>
+                  )}
+                </div>
+              </div>
+              <a
+                href={order.tracking_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-violet-700 border border-violet-300 rounded-lg hover:bg-violet-100 transition-colors whitespace-nowrap"
+              >
+                Track Shipment <ExternalLink size={11} />
+              </a>
+            </div>
+          )}
+
           {/* Receipt status for bank transfer pending orders */}
           {order.payment_method === 'bank_transfer' && order.status === 'pending' && (
             <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
