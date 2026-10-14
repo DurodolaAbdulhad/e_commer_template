@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { Search, ChevronRight, ShoppingBag, AlertCircle } from 'lucide-react'
+import { Search, ChevronRight, ShoppingBag, AlertCircle, Download } from 'lucide-react'
 import { formatPrice } from '@/lib/utils'
+import { client } from '@/config/client'
 import toast from 'react-hot-toast'
 
 const ACCENT = '#e84c3d'
@@ -66,6 +67,47 @@ export default function AdminOrdersPage() {
     (o.email ?? o.customer_email ?? o.contact?.email ?? '').toLowerCase().includes(search.toLowerCase())
   )
 
+  function exportCSV() {
+    const sym = client.currencySymbol
+    const header = [
+      'Order #', 'Date', 'Customer Name', 'Email', 'Phone',
+      'Items', `Subtotal (${sym})`, `Shipping (${sym})`, `Discount (${sym})`, `VAT (${sym})`, `Total (${sym})`,
+      'Payment Method', 'Status', 'Delivery Address', 'City', 'State',
+    ]
+    const PM: Record<string, string> = {
+      paystack: 'Online (Paystack)', pay_on_delivery: 'Pay on Delivery',
+      bank_transfer: 'Bank Transfer', whatsapp: 'WhatsApp Order', bnpl: 'Installment (BNPL)',
+    }
+    const rows = filtered.map(o => {
+      const addr = o.address ?? {}
+      return [
+        o.order_number || o.payment_reference || o.id,
+        o.created_at ? new Date(o.created_at).toLocaleDateString('en-NG') : '',
+        addr.fullName || [addr.firstName, addr.lastName].filter(Boolean).join(' ') || '',
+        addr.email || o.email || o.customer_email || '',
+        addr.phone || o.phone || '',
+        (o.items ?? []).length,
+        (o.subtotal ?? 0).toFixed(2),
+        (o.shipping_cost ?? o.shipping ?? 0).toFixed(2),
+        (o.discount ?? 0).toFixed(2),
+        (o.vat ?? 0).toFixed(2),
+        (o.total ?? 0).toFixed(2),
+        PM[o.payment_method] ?? o.payment_method ?? 'Online',
+        o.status || 'pending',
+        addr.address || '',
+        addr.city || '',
+        addr.state || '',
+      ]
+    })
+    const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `orders-export.csv`; a.click()
+    URL.revokeObjectURL(url)
+    toast.success(`Exported ${filtered.length} orders`)
+  }
+
   return (
     <div className="space-y-4">
       {/* DB error banner */}
@@ -100,6 +142,14 @@ export default function AdminOrdersPage() {
             </button>
           ))}
         </div>
+        <button
+          onClick={exportCSV}
+          disabled={loading || filtered.length === 0}
+          className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border border-gray-200 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40 transition-colors"
+        >
+          <Download size={13} />
+          Export CSV
+        </button>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">

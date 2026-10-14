@@ -37,11 +37,13 @@ export default async function InvoicePage({ params }: { params: { ref: string } 
     order.payment_method === 'pay_on_delivery' ? 'Pay on Delivery' :
     order.payment_method === 'bank_transfer'   ? 'Bank Transfer' :
     order.payment_method === 'whatsapp'        ? 'WhatsApp Order' :
+    order.payment_method === 'bnpl'            ? 'Installment Payment (BNPL)' :
     'Online Payment (Paystack)'
 
   const statusLabel =
-    order.payment_method === 'bank_transfer' ? 'Pending Confirmation' :
+    order.payment_method === 'bank_transfer'   ? 'Pending Confirmation' :
     order.payment_method === 'pay_on_delivery' ? 'Payment on Delivery' :
+    order.payment_method === 'bnpl'            ? 'Installment Plan Active' :
     'Paid'
 
   return (
@@ -76,9 +78,14 @@ export default async function InvoicePage({ params }: { params: { ref: string } 
         {/* Header */}
         <div className="flex items-start justify-between mb-10">
           <div>
-            <h1 className="text-2xl font-extrabold text-gray-900" style={{ fontFamily: 'sans-serif' }}>
-              {client.name}
-            </h1>
+            {(client as any).logo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={(client as any).logo} alt={client.name} style={{ maxHeight: '48px', maxWidth: '180px', objectFit: 'contain', marginBottom: '8px' }} />
+            ) : (
+              <h1 className="text-2xl font-extrabold text-gray-900" style={{ fontFamily: 'sans-serif' }}>
+                {client.name}
+              </h1>
+            )}
             {client.address && <p className="text-sm text-gray-500 mt-1">{client.address}</p>}
             {client.email && <p className="text-sm text-gray-500">{client.email}</p>}
             {client.phone && <p className="text-sm text-gray-500">{client.phone}</p>}
