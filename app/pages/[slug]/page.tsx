@@ -9,6 +9,7 @@ import { ChevronRight } from 'lucide-react'
 import ContactPageContent from '@/components/pages/ContactPageContent'
 import FaqPageContent from '@/components/pages/FaqPageContent'
 import { getPageContent } from '@/lib/page-content'
+import * as legalDefaults from '@/lib/legal-defaults'
 
 // Renders plain text with **bold** markers and double-newline paragraphs
 function RichText({ text }: { text: string }) {
@@ -602,11 +603,13 @@ export default async function StaticPage({ params }: { params: Promise<{ slug: s
       case 'store-location':
         return <StoreLocationContent data={savedData} />
       case 'returns':
-      case 'terms':
-      case 'privacy':
         return savedData?.content
           ? <RichText text={savedData.content} />
           : page.node
+      case 'terms':
+        return <RichText text={savedData?.content ?? legalDefaults.terms(client)} />
+      case 'privacy':
+        return <RichText text={savedData?.content ?? legalDefaults.privacy(client)} />
       default:
         return page.node
     }
