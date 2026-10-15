@@ -52,6 +52,7 @@ const NAV: NavItem[] = [
   { href: '/admin/abandoned-carts',  label: 'Abandoned Carts',      icon: ShoppingCart, minRole: 'manager' },
   { href: '/admin/back-in-stock',    label: 'Back-in-Stock',        icon: Bell,         minRole: 'manager' },
   { href: '/admin/push',             label: 'Push Notifications',   icon: Bell,         minRole: 'manager' },
+  { href: '/admin/agents',           label: 'Agents & Sales',       icon: Users,        minRole: 'manager' },
   { href: '/admin/staff',            label: 'Staff & Roles',        icon: UserCog,      minRole: 'admin'   },
   { href: '/admin/blog',             label: 'Blog Posts',           icon: FileText,     minRole: 'manager' },
   { href: '/admin/pages',            label: 'Pages Editor',         icon: FileText,     minRole: 'manager' },

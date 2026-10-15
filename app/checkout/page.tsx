@@ -71,10 +71,13 @@ export default function CheckoutPage() {
   const [selectedPickupPoint, setSelectedPickupPoint] = useState<string>((client as any).pickupPoints?.[0]?.id ?? '')
   const [klumpKey,         setKlumpKey]         = useState(process.env.NEXT_PUBLIC_KLUMP_PUBLIC_KEY ?? '')
   const [bnplMinAmount,    setBnplMinAmount]    = useState(10000)
+  const [agentCode,        setAgentCode]        = useState<string | null>(null)
 
   useEffect(() => {
     setMounted(true)
     loadShippingSettings().then(s => setShippingSettings(s)).catch(() => {})
+    // Read agent referral code captured from ?ref= URL param
+    try { setAgentCode(localStorage.getItem('agent_ref') || null) } catch {}
     // Load BNPL settings from DB (overrides env var if set)
     import('@/lib/admin-db').then(({ getStoreSetting }) => {
       getStoreSetting('bnpl_enabled').then(v => {
@@ -456,6 +459,7 @@ export default function CheckoutPage() {
       delivery_method:   shipMethod === 'self' ? 'self_logistics' : shipMethod === 'pickup' ? 'pickup' : 'store_delivery',
       pickup_point_id:   shipMethod === 'pickup' ? selectedPickupPoint : null,
       pickup_point_name: shipMethod === 'pickup' ? pickupPoints.find(p => p.id === selectedPickupPoint)?.name ?? null : null,
+      agent_code:        agentCode || null,
     }
 
     // Fix 11: store minimal data in localStorage — full order saved to Supabase only
@@ -482,8 +486,9 @@ export default function CheckoutPage() {
       await supabase.from('orders').insert(orderData)
     } catch {}
 
-    // Clear cart
+    // Clear cart and agent ref
     dispatch({ type: 'CLEAR_CART' })
+    try { localStorage.removeItem('agent_ref'); localStorage.removeItem('agent_ref_ts') } catch {}
 
     // Redirect to confirmation
     router.push(`/order/${paystackRef}`)
@@ -522,6 +527,7 @@ export default function CheckoutPage() {
         delivery_method: shipMethod === 'self' ? 'self_logistics' : shipMethod === 'pickup' ? 'pickup' : 'store_delivery',
         pickup_point_id: shipMethod === 'pickup' ? selectedPickupPoint : null,
         pickup_point_name: shipMethod === 'pickup' ? pickupPoints.find(p => p.id === selectedPickupPoint)?.name ?? null : null,
+        agent_code: agentCode || null,
       }
       localStorage.setItem(`order_${reference}`, JSON.stringify({
         order_number: reference, status: 'pending', total,
@@ -533,6 +539,7 @@ export default function CheckoutPage() {
         await supabase.from('orders').insert(orderData)
       } catch {}
       dispatch({ type: 'CLEAR_CART' })
+      try { localStorage.removeItem('agent_ref'); localStorage.removeItem('agent_ref_ts') } catch {}
       router.push(`/order/${reference}`)
     } catch (err: any) {
       toast.error(err?.message || 'Failed to place order. Please try again.')
@@ -574,6 +581,7 @@ export default function CheckoutPage() {
         delivery_method: shipMethod === 'self' ? 'self_logistics' : shipMethod === 'pickup' ? 'pickup' : 'store_delivery',
         pickup_point_id: shipMethod === 'pickup' ? selectedPickupPoint : null,
         pickup_point_name: shipMethod === 'pickup' ? pickupPoints.find(p => p.id === selectedPickupPoint)?.name ?? null : null,
+        agent_code: agentCode || null,
       }
       localStorage.setItem(`order_${reference}`, JSON.stringify({
         order_number: reference, status: 'pending_payment', total,
@@ -585,6 +593,7 @@ export default function CheckoutPage() {
         await supabase.from('orders').insert(orderData)
       } catch {}
       dispatch({ type: 'CLEAR_CART' })
+      try { localStorage.removeItem('agent_ref'); localStorage.removeItem('agent_ref_ts') } catch {}
       router.push(`/order/${reference}`)
     } catch (err: any) {
       toast.error(err?.message || 'Failed to place order. Please try again.')
@@ -644,6 +653,7 @@ export default function CheckoutPage() {
             delivery_method: shipMethod === 'self' ? 'self_logistics' : shipMethod === 'pickup' ? 'pickup' : 'store_delivery',
             pickup_point_id: shipMethod === 'pickup' ? selectedPickupPoint : null,
             pickup_point_name: shipMethod === 'pickup' ? pickupPoints.find(p => p.id === selectedPickupPoint)?.name ?? null : null,
+            agent_code: agentCode || null,
           }
           localStorage.setItem(`order_${reference}`, JSON.stringify({
             order_number: reference, status: 'pending', total,
@@ -655,6 +665,7 @@ export default function CheckoutPage() {
             await supabase.from('orders').insert(orderData)
           } catch {}
           dispatch({ type: 'CLEAR_CART' })
+          try { localStorage.removeItem('agent_ref'); localStorage.removeItem('agent_ref_ts') } catch {}
           router.push(`/order/${reference}`)
         },
         onError: (_data: any) => {
@@ -705,6 +716,7 @@ export default function CheckoutPage() {
         delivery_method: shipMethod === 'self' ? 'self_logistics' : shipMethod === 'pickup' ? 'pickup' : 'store_delivery',
         pickup_point_id: shipMethod === 'pickup' ? selectedPickupPoint : null,
         pickup_point_name: shipMethod === 'pickup' ? pickupPoints.find(p => p.id === selectedPickupPoint)?.name ?? null : null,
+        agent_code: agentCode || null,
       }
       localStorage.setItem(`order_${reference}`, JSON.stringify({
         order_number: reference, status: 'pending', total,
@@ -745,6 +757,7 @@ export default function CheckoutPage() {
 
       const waNum = client.whatsapp.replace(/\D/g, '')
       dispatch({ type: 'CLEAR_CART' })
+      try { localStorage.removeItem('agent_ref'); localStorage.removeItem('agent_ref_ts') } catch {}
 
       // Open WhatsApp in a new tab, then navigate to confirmation
       window.open(`https://wa.me/${waNum}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')

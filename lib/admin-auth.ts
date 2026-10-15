@@ -4,9 +4,9 @@ export { checkRateLimit, resetRateLimit } from './rate-limit'
 
 const SECRET = () => process.env.ADMIN_SESSION_SECRET ?? 'change-me-in-production'
 
-export type AdminRole = 'admin' | 'manager' | 'viewer'
+export type AdminRole = 'admin' | 'manager' | 'viewer' | 'agent'
 
-const ROLE_RANK: Record<string, number> = { admin: 3, manager: 2, viewer: 1 }
+const ROLE_RANK: Record<string, number> = { admin: 3, manager: 2, viewer: 1, agent: 0 }
 
 // ── Token generation ────────────────────────────────────────────────────────
 // Format: ts.role.sig  (sig covers ts + ':' + role)

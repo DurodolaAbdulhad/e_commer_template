@@ -17,6 +17,7 @@ import AiAssistant from "@/components/ui/AiAssistant";
 import ComboBuilder from "@/components/ui/ComboBuilder";
 import CookieConsent from "@/components/ui/CookieConsent";
 import TrackingScripts from "@/components/ui/TrackingScripts";
+import AgentRefCapture from "@/components/ui/AgentRefCapture";
 import "./globals.css";
 
 
@@ -186,6 +187,7 @@ export default async function RootLayout({
             <ComboBuilder />
             <TrackingScripts fbPixelId={fbPixelId || undefined} gaId={gaId || undefined} tiktokId={tiktokId || undefined} clarityId={clarityId || undefined} />
             <CookieConsent />
+            <AgentRefCapture />
             <Toaster
               position="top-right"
               toastOptions={{
