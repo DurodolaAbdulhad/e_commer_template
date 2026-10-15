@@ -3,9 +3,10 @@
 import { useEffect, useState, useCallback } from 'react'
 import { formatPrice } from '@/lib/utils'
 import { client } from '@/config/client'
+import Link from 'next/link'
 import {
   TrendingUp, DollarSign, ShoppingBag, Clock, Download,
-  AlertCircle, CreditCard, Smartphone, Banknote, MessageCircle, Zap,
+  AlertCircle, CreditCard, Smartphone, Banknote, MessageCircle, Zap, FileText,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -41,7 +42,7 @@ function exportCSV(orders: any[], filename: string) {
   const header = [
     'Order #', 'Date', 'Customer Name', 'Email', 'Phone',
     'Items', `Subtotal (${sym})`, `Shipping (${sym})`, `Discount (${sym})`, `VAT (${sym})`, `Total (${sym})`,
-    'Payment Method', 'Status', 'Delivery Address', 'City', 'State',
+    'Payment Method', 'Status', 'Delivery Address', 'City', 'State', 'Invoice URL',
   ]
   const rows = orders.map(o => {
     const addr = o.address ?? {}
@@ -63,6 +64,7 @@ function exportCSV(orders: any[], filename: string) {
       addr.address || '',
       addr.city || '',
       addr.state || '',
+      `${typeof window !== 'undefined' ? window.location.origin : ''}/invoice/${o.order_number || o.payment_reference || o.id}`,
     ]
   })
   const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
@@ -136,6 +138,23 @@ export default function AccountingPage() {
   const pendingWA   = orders.filter(o => o.payment_method === 'whatsapp' && o.status === 'pending')
   const pendingTotal = [...pendingBank, ...pendingWA].reduce((s, o) => s + (o.total ?? 0), 0)
 
+  // VAT collected (from orders with vat > 0)
+  const vatTotal     = orders.filter(o => o.status !== 'cancelled').reduce((s, o) => s + (o.vat ?? 0), 0)
+  const vatThisMonth = orders.filter(o => o.status !== 'cancelled' && new Date(o.created_at) >= startOf('month')).reduce((s, o) => s + (o.vat ?? 0), 0)
+
+  // Monthly revenue summary (last 6 months)
+  const monthlyRev: Record<string, number> = {}
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i)
+    monthlyRev[d.toISOString().slice(0, 7)] = 0
+  }
+  orders.filter(o => o.status !== 'cancelled').forEach(o => {
+    const key = new Date(o.created_at).toISOString().slice(0, 7)
+    if (key in monthlyRev) monthlyRev[key] += o.total ?? 0
+  })
+  const monthlyData = Object.entries(monthlyRev).map(([month, rev]) => ({ month, rev }))
+  const monthlyMax  = Math.max(...monthlyData.map(d => d.rev), 1)
+
   // Filtered orders for export
   const exportOrders = (() => {
     if (!fromDate && !toDate) return orders
@@ -194,6 +213,53 @@ export default function AccountingPage() {
         <StatCard label="This Month"        value={formatPrice(monthRev)}  sub={`${monthOrd} order${monthOrd !== 1 ? 's' : ''}`}    icon={ShoppingBag} color="#16a34a" />
         <StatCard label="Average Order"     value={formatPrice(avgOrder)}  sub="all time, excl. cancelled"                          icon={CreditCard}  color="#7c3aed" />
       </div>
+
+      {/* VAT summary */}
+      {(vatTotal > 0 || !loading) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white rounded-xl border border-gray-100 p-5">
+            <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-3">VAT / Tax Collected</h3>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                <span className="text-xs text-gray-500">This month</span>
+                <span className="text-sm font-bold text-gray-800">{formatPrice(vatThisMonth)}</span>
+              </div>
+              <div className="flex justify-between items-center py-2">
+                <span className="text-xs text-gray-500">All time</span>
+                <span className="text-sm font-bold text-gray-800">{formatPrice(vatTotal)}</span>
+              </div>
+              {vatTotal === 0 && (
+                <p className="text-[10px] text-gray-400 pt-1">No VAT recorded. Add a <code className="bg-gray-100 px-1 rounded">vat</code> column to your orders table to track tax here.</p>
+              )}
+            </div>
+          </div>
+
+          {/* Monthly revenue (last 6 months) */}
+          <div className="bg-white rounded-xl border border-gray-100 p-5">
+            <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-4">Monthly Revenue — Last 6 Months</h3>
+            {loading ? (
+              <div className="flex items-center justify-center h-20">
+                <div className="w-5 h-5 rounded-full border-2 border-gray-200 border-t-red-500 animate-spin" />
+              </div>
+            ) : (
+              <div className="flex items-end gap-1.5 h-20">
+                {monthlyData.map(({ month, rev }) => {
+                  const pct = Math.round((rev / monthlyMax) * 100)
+                  const isCurrentMonth = month === new Date().toISOString().slice(0, 7)
+                  const label = new Date(month + '-01').toLocaleDateString('en-NG', { month: 'short' })
+                  return (
+                    <div key={month} className="flex-1 flex flex-col items-center justify-end gap-1" title={`${month}: ${formatPrice(rev)}`}>
+                      <div className="w-full rounded-t transition-all"
+                        style={{ height: `${Math.max(pct, 3)}%`, backgroundColor: isCurrentMonth ? ACCENT : '#cbd5e1', minHeight: '3px' }} />
+                      <span className="text-[9px] text-gray-400">{label}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Outstanding + Payment breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -365,22 +431,24 @@ export default function AccountingPage() {
           </div>
         ) : (
           <div>
-            <div className="hidden md:grid grid-cols-[1fr_120px_90px_120px_80px_90px] gap-3 px-5 py-3 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+            <div className="hidden md:grid grid-cols-[1fr_120px_90px_120px_80px_90px_32px] gap-3 px-5 py-3 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
               <span>Order / Date</span>
               <span>Customer</span>
               <span>Items</span>
               <span>Total</span>
               <span>Method</span>
               <span>Status</span>
+              <span />
             </div>
             {orders.slice(0, 20).map(o => {
               const addr = o.address ?? {}
               const pm = PM_LABELS[o.payment_method] ?? { label: o.payment_method ?? 'Online', color: '#6b7280' }
               const statusColor = o.status === 'delivered' ? '#16a34a' : o.status === 'cancelled' ? '#6b7280' : o.status === 'shipped' ? '#7c3aed' : o.status === 'processing' ? '#2563eb' : ACCENT
+              const invoiceRef = o.order_number || o.payment_reference || o.id
               return (
-                <div key={o.id} className="grid grid-cols-1 md:grid-cols-[1fr_120px_90px_120px_80px_90px] gap-3 items-center px-5 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50">
+                <div key={o.id} className="grid grid-cols-1 md:grid-cols-[1fr_120px_90px_120px_80px_90px_32px] gap-3 items-center px-5 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 group">
                   <div>
-                    <p className="text-xs font-mono font-semibold text-gray-700">{o.order_number || o.payment_reference || o.id}</p>
+                    <p className="text-xs font-mono font-semibold text-gray-700">{invoiceRef}</p>
                     <p className="text-[10px] text-gray-400">{o.created_at ? new Date(o.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}</p>
                   </div>
                   <p className="text-xs text-gray-600 truncate">{addr.fullName || [addr.firstName, addr.lastName].filter(Boolean).join(' ') || addr.email || 'Guest'}</p>
@@ -388,6 +456,10 @@ export default function AccountingPage() {
                   <p className="text-sm font-bold" style={{ color: ACCENT }}>{formatPrice(o.total ?? 0)}</p>
                   <p className="text-[10px] font-semibold" style={{ color: pm.color }}>{pm.label}</p>
                   <p className="text-[10px] font-semibold capitalize" style={{ color: statusColor }}>{o.status || 'pending'}</p>
+                  <Link href={`/invoice/${invoiceRef}`} target="_blank" title="View invoice"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <FileText size={13} className="text-gray-400 hover:text-gray-700" />
+                  </Link>
                 </div>
               )
             })}

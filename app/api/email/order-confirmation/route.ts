@@ -135,10 +135,14 @@ export async function POST(req: NextRequest) {
               <p style="margin:0 0 14px;font-size:14px;color:#555;line-height:1.7;">
                 We'll process your order and send you an update when it ships. You can track your order at any time using the button below.
               </p>
-              <div style="text-align:center;">
+              <div style="text-align:center;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
                 <a href="${esc(process.env.NEXT_PUBLIC_SITE_URL || '')}/track"
                   style="display:inline-block;background:#e84c3d;color:#fff;font-weight:700;font-size:14px;padding:12px 28px;border-radius:8px;text-decoration:none;">
                   Track My Order
+                </a>
+                <a href="${esc(process.env.NEXT_PUBLIC_SITE_URL || '')}/invoice/${esc(orderNumber)}"
+                  style="display:inline-block;background:#1a2638;color:#fff;font-weight:700;font-size:14px;padding:12px 28px;border-radius:8px;text-decoration:none;">
+                  🧾 View Invoice
                 </a>
               </div>
             </div>
