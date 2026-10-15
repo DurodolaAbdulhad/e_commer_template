@@ -160,6 +160,19 @@ export default function ContactPage() {
         </div>
       </PageBox>
       <Footer />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'LocalBusiness',
+          name: client.name,
+          telephone: info.phone,
+          email: info.email,
+          address: { '@type': 'PostalAddress', streetAddress: info.address, addressLocality: 'Lagos', addressCountry: 'NG' },
+          openingHours: ['Mo-Fr 09:00-18:00', 'Sa 10:00-16:00'],
+          url: typeof window !== 'undefined' ? window.location.origin : '',
+        }) }}
+      />
     </>
   )
 }

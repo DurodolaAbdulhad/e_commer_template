@@ -83,6 +83,19 @@ export default async function AboutPage() {
         </div>
       </PageBox>
       <Footer />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'Organization',
+          name: client.name,
+          url: process.env.NEXT_PUBLIC_SITE_URL ?? '',
+          logo: `${process.env.NEXT_PUBLIC_SITE_URL ?? ''}${client.logo}`,
+          contactPoint: { '@type': 'ContactPoint', telephone: client.phone, contactType: 'customer service', areaServed: 'NG', availableLanguage: 'English' },
+          address: { '@type': 'PostalAddress', addressLocality: 'Lagos', addressCountry: 'NG', streetAddress: client.address },
+          description: client.seo.description,
+        }) }}
+      />
     </>
   )
 }

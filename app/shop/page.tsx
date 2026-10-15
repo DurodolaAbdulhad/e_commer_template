@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase-server'
+import { client } from '@/config/client'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
 import PageBox from '@/components/ui/PageBox'
@@ -94,8 +95,19 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
       ? (categories.find((c: any) => c.slug === params.category)?.name ?? 'Products')
     : 'All Products'
 
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? ''
+  const breadcrumbSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
+      { '@type': 'ListItem', position: 2, name: client.name + ' Shop', item: `${siteUrl}/shop` },
+    ],
+  }
+
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
       <Header />
       <PageBox>
         <main className="px-6 py-5">

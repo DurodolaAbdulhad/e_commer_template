@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase-server'
+import { client } from '@/config/client'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
 import PageBox from '@/components/ui/PageBox'
@@ -48,8 +49,36 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
     )
   }
 
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? ''
+  const schema = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
+          { '@type': 'ListItem', position: 2, name: 'Shop', item: `${siteUrl}/shop` },
+          { '@type': 'ListItem', position: 3, name: category.name, item: `${siteUrl}/category/${slug}` },
+        ],
+      },
+      {
+        '@type': 'ItemList',
+        name: category.name,
+        description: category.description ?? undefined,
+        numberOfItems: products.length,
+        itemListElement: products.slice(0, 20).map((p: any, i: number) => ({
+          '@type': 'ListItem',
+          position: i + 1,
+          url: `${siteUrl}/shop/${p.slug}`,
+          name: p.name,
+        })),
+      },
+    ],
+  }
+
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />
       <Header />
       <PageBox>
         <main className="px-4 py-6">

@@ -2,6 +2,7 @@ import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
 import PageBox from '@/components/ui/PageBox'
 import HeroBanner from '@/components/home/HeroBanner'
+import { client } from '@/config/client'
 import TrustBadges from '@/components/home/TrustBadges'
 import CategoryGrid from '@/components/home/CategoryGrid'
 import FlashDeals from '@/components/home/FlashDeals'
@@ -56,9 +57,38 @@ async function fetchSections(): Promise<Section[]> {
 
 export default async function HomePage() {
   const sections = await fetchSections()
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? ''
+
+  const schema = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'WebSite',
+        '@id': `${siteUrl}/#website`,
+        url: siteUrl,
+        name: client.seo.title,
+        description: client.seo.description,
+        potentialAction: {
+          '@type': 'SearchAction',
+          target: { '@type': 'EntryPoint', urlTemplate: `${siteUrl}/shop?q={search_term_string}` },
+          'query-input': 'required name=search_term_string',
+        },
+      },
+      {
+        '@type': 'Organization',
+        '@id': `${siteUrl}/#organization`,
+        name: client.name,
+        url: siteUrl,
+        logo: `${siteUrl}${client.logo}`,
+        contactPoint: { '@type': 'ContactPoint', telephone: client.phone, contactType: 'customer service', areaServed: 'NG' },
+        address: { '@type': 'PostalAddress', streetAddress: client.address, addressLocality: 'Lagos', addressCountry: 'NG' },
+      },
+    ],
+  }
 
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />
       <Header />
       <PageBox>
         <main>

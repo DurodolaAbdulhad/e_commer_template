@@ -53,5 +53,47 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  return <BlogPostContent slug={slug} />
+
+  let articleSchema: object | null = null
+  if (isSupabaseReady()) {
+    try {
+      const { createClient } = await import('@/lib/supabase-server')
+      const supabase = await createClient()
+      const { data: post } = await supabase
+        .from('posts')
+        .select('title, excerpt, cover_image, author, published_at, updated_at')
+        .eq('slug', slug)
+        .eq('is_published', true)
+        .single()
+
+      if (post) {
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? ''
+        articleSchema = {
+          '@context': 'https://schema.org',
+          '@type': 'Article',
+          headline: post.title,
+          description: post.excerpt ?? '',
+          image: post.cover_image ? [post.cover_image] : undefined,
+          author: { '@type': 'Person', name: post.author ?? client.name },
+          publisher: {
+            '@type': 'Organization',
+            name: client.name,
+            logo: { '@type': 'ImageObject', url: `${siteUrl}${client.logo}` },
+          },
+          datePublished: post.published_at,
+          dateModified: post.updated_at ?? post.published_at,
+          mainEntityOfPage: { '@type': 'WebPage', '@id': `${siteUrl}/blog/${slug}` },
+        }
+      }
+    } catch {}
+  }
+
+  return (
+    <>
+      {articleSchema && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }} />
+      )}
+      <BlogPostContent slug={slug} />
+    </>
+  )
 }
