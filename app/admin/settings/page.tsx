@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { Upload, Loader2, Check, Save, Image as ImageIcon, Type, RefreshCw, Globe, Smile, X, Palette, Radio, Bot, Bell, Layers, Plus, Trash2, Users } from 'lucide-react'
-import { getStoreSetting, saveStoreSetting, getComboTiers, saveComboTiers, getPricingTiers, savePricingTiers } from '@/lib/admin-db'
+import { Upload, Loader2, Check, Save, Image as ImageIcon, Type, RefreshCw, Globe, Smile, X, Palette, Radio, Bot, Bell, Layers, Plus, Trash2, Users, DollarSign } from 'lucide-react'
+import { getStoreSetting, saveStoreSetting, getComboTiers, saveComboTiers, getPricingTiers, savePricingTiers, getFxSettings, saveFxSettings } from '@/lib/admin-db'
 import { client } from '@/config/client'
 import toast from 'react-hot-toast'
 
@@ -77,6 +77,14 @@ export default function SettingsPage() {
   const [savingPricingT,   setSavingPricingT]   = useState(false)
   const [savedPricingT,    setSavedPricingT]    = useState(false)
 
+  // FX / USD–NGN rate
+  const [fxEnabled,     setFxEnabled]     = useState(false)
+  const [fxRate,        setFxRate]        = useState<number | string>('')
+  const [fxUpdatedAt,   setFxUpdatedAt]   = useState<string | null>(null)
+  const [savingFx,      setSavingFx]      = useState(false)
+  const [savedFx,       setSavedFx]       = useState(false)
+  const [refreshingFx,  setRefreshingFx]  = useState(false)
+
   // Combo builder tiers
   const [comboTiers,    setComboTiers]    = useState<{ min_spend: number; discount_pct: number }[]>([])
   const [savingTiers,   setSavingTiers]   = useState(false)
@@ -129,6 +137,11 @@ export default function SettingsPage() {
     getStoreSetting('bnpl_enabled').then(v    => { if (v !== null && v !== undefined) setBnplEnabled(v !== '0' && v !== false) })
     getStoreSetting('klump_public_key').then(v => { if (v) setKlumpPubKey(v as string) })
     getStoreSetting('bnpl_min_amount').then(v  => { if (v !== null) setBnplMinAmount(Number(v)) })
+    getFxSettings().then(fx => {
+      setFxEnabled(fx.enabled)
+      if (fx.rate) setFxRate(fx.rate)
+      setFxUpdatedAt(fx.updatedAt)
+    })
   }, [])
 
   async function handleFile(file: File) {
@@ -1058,6 +1071,103 @@ export default function SettingsPage() {
                 : <><Save size={13} /> Save</>}
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* ── Currency & FX ──────────────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <DollarSign size={16} style={{ color: ACCENT }} />
+          <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Currency & FX</h3>
+        </div>
+        <p className="text-xs text-gray-400 mb-4">
+          Show a secondary USD equivalent price on every product card and detail page. Set the rate manually to match the parallel market / street rate, or auto-refresh from an open exchange-rate feed.
+        </p>
+
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <p className="text-sm font-medium text-gray-700">Show USD equivalent prices</p>
+            <p className="text-xs text-gray-400 mt-0.5">Displays "~$XX" alongside the Naira price on product listings</p>
+          </div>
+          <button
+            onClick={() => { setFxEnabled(v => !v); setSavedFx(false) }}
+            className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+            style={{ backgroundColor: fxEnabled ? ACCENT : '#d1d5db' }}>
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${fxEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">USD → NGN rate</label>
+            <input
+              type="number"
+              min="1"
+              step="0.5"
+              value={fxRate}
+              onChange={e => { setFxRate(e.target.value); setSavedFx(false) }}
+              placeholder="e.g. 1620"
+              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1"
+              style={{ '--tw-ring-color': ACCENT } as any}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Last updated</label>
+            <p className="text-sm text-gray-500 mt-1.5">
+              {fxUpdatedAt
+                ? new Date(fxUpdatedAt).toLocaleString('en-NG', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                : '—'}
+            </p>
+          </div>
+        </div>
+
+        {fxRate && Number(fxRate) > 0 && (
+          <p className="text-xs text-gray-400 mb-4">
+            Preview: ₦10,000 = ~${Math.round(10000 / Number(fxRate)).toLocaleString('en-US')} · ₦50,000 = ~${Math.round(50000 / Number(fxRate)).toLocaleString('en-US')}
+          </p>
+        )}
+
+        <div className="flex items-center gap-2 justify-between">
+          <button
+            onClick={async () => {
+              setRefreshingFx(true)
+              try {
+                const adminToken = localStorage.getItem('admin_token') || ''
+                const res = await fetch('/api/fx/rate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: adminToken }) })
+                if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Failed') }
+                const { rate, updatedAt } = await res.json()
+                setFxRate(rate)
+                setFxUpdatedAt(updatedAt)
+                setSavedFx(false)
+                toast.success(`Live rate fetched: ₦${Number(rate).toLocaleString()} per $1`)
+              } catch (e: any) { toast.error(e.message || 'Could not fetch rate') }
+              finally { setRefreshingFx(false) }
+            }}
+            disabled={refreshingFx}
+            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50">
+            <RefreshCw size={12} className={refreshingFx ? 'animate-spin' : ''} />
+            {refreshingFx ? 'Fetching…' : 'Auto-fetch live rate'}
+          </button>
+
+          <button
+            onClick={async () => {
+              setSavingFx(true)
+              try {
+                await saveFxSettings({ rate: Number(fxRate) || undefined, enabled: fxEnabled })
+                if (fxRate) await saveStoreSetting('usd_ngn_updated_at', new Date().toISOString())
+                setSavedFx(true)
+                setFxUpdatedAt(new Date().toISOString())
+                toast.success('FX settings saved')
+              } catch { toast.error('Failed to save') }
+              finally { setSavingFx(false) }
+            }}
+            disabled={savingFx}
+            className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded-xl text-white hover:opacity-90 disabled:opacity-60"
+            style={{ backgroundColor: savedFx ? '#16a34a' : ACCENT }}>
+            {savedFx ? <><Check size={13} /> Saved</>
+              : savingFx ? <><Save size={13} className="animate-pulse" /> Saving…</>
+              : <><Save size={13} /> Save</>}
+          </button>
         </div>
       </div>
 

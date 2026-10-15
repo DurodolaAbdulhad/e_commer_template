@@ -6,9 +6,10 @@ import { Heart, ShoppingCart, Eye, BarChart2 } from 'lucide-react'
 import { useCart } from '@/hooks/useCart'
 import { useWishlist } from '@/hooks/useWishlist'
 import { useCompare } from '@/hooks/useCompare'
-import { formatPrice, getDiscount } from '@/lib/utils'
+import { formatPrice, getDiscount, formatUsdEquiv } from '@/lib/utils'
 import { client } from '@/config/client'
 import { openQuickView } from '@/components/product/QuickViewModal'
+import { useFxRate } from '@/hooks/useFxRate'
 import toast from 'react-hot-toast'
 
 const ACCENT = '#e84c3d'
@@ -56,9 +57,11 @@ export default function ProductCard({ product, listView = false }: Props) {
   const { dispatch } = useCart()
   const { toggle, isWishlisted } = useWishlist()
   const { add: addCompare, remove: removeCompare, has: inCompare } = useCompare()
+  const { rate, enabled: fxEnabled } = useFxRate()
   const discount    = getDiscount(product.price, product.compare_price)
   const wishlisted  = isWishlisted(product.id)
   const isOutOfStock = (product.stock ?? 1) <= 0
+  const usdLabel = fxEnabled && rate ? formatUsdEquiv(product.price, rate) : null
 
   function addToCart(e: React.MouseEvent) {
     e.preventDefault()
@@ -98,6 +101,7 @@ export default function ProductCard({ product, listView = false }: Props) {
             {product.compare_price && product.compare_price > product.price && (
               <span className="text-xs text-gray-400 line-through">{formatPrice(product.compare_price)}</span>
             )}
+            {usdLabel && <span className="text-xs text-gray-400">{usdLabel}</span>}
           </div>
         </div>
         {/* Actions */}
@@ -214,6 +218,7 @@ export default function ProductCard({ product, listView = false }: Props) {
               {formatPrice(product.compare_price)}
             </span>
           )}
+          {usdLabel && <span className="text-xs text-gray-400">{usdLabel}</span>}
         </div>
       </div>
     </Link>
