@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { Upload, Loader2, Check, Save, Image as ImageIcon, Type, RefreshCw, Globe, Smile, X, Palette, Radio, Bot, Bell, Layers, Plus, Trash2, Users, DollarSign } from 'lucide-react'
+import { Upload, Loader2, Check, Save, Image as ImageIcon, Type, RefreshCw, Globe, Smile, X, Palette, Radio, Bot, Bell, Layers, Plus, Trash2, Users, DollarSign, Phone } from 'lucide-react'
 import { getStoreSetting, saveStoreSetting, getComboTiers, saveComboTiers, getPricingTiers, savePricingTiers, getFxSettings, saveFxSettings } from '@/lib/admin-db'
 import { client } from '@/config/client'
 import toast from 'react-hot-toast'
@@ -77,6 +77,12 @@ export default function SettingsPage() {
   const [savingPricingT,   setSavingPricingT]   = useState(false)
   const [savedPricingT,    setSavedPricingT]    = useState(false)
 
+  // USSD fallback
+  const [ussdEnabled,     setUssdEnabled]     = useState(false)
+  const [ussdServiceCode, setUssdServiceCode] = useState('')
+  const [savingUssd,      setSavingUssd]      = useState(false)
+  const [savedUssd,       setSavedUssd]       = useState(false)
+
   // FX / USD–NGN rate
   const [fxEnabled,     setFxEnabled]     = useState(false)
   const [fxRate,        setFxRate]        = useState<number | string>('')
@@ -142,6 +148,8 @@ export default function SettingsPage() {
       if (fx.rate) setFxRate(fx.rate)
       setFxUpdatedAt(fx.updatedAt)
     })
+    getStoreSetting('ussd_enabled').then(v => { if (v !== null && v !== undefined) setUssdEnabled(v !== '0' && v !== false) })
+    getStoreSetting('ussd_service_code').then(v => { if (v) setUssdServiceCode(v as string) })
   }, [])
 
   async function handleFile(file: File) {
@@ -1166,6 +1174,75 @@ export default function SettingsPage() {
             style={{ backgroundColor: savedFx ? '#16a34a' : ACCENT }}>
             {savedFx ? <><Check size={13} /> Saved</>
               : savingFx ? <><Save size={13} className="animate-pulse" /> Saving…</>
+              : <><Save size={13} /> Save</>}
+          </button>
+        </div>
+      </div>
+
+      {/* ── USSD Fallback ───────────────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Phone size={16} style={{ color: ACCENT }} />
+          <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">USSD Fallback</h3>
+        </div>
+        <p className="text-xs text-gray-500 mb-4">
+          Allow feature-phone customers to browse, order, and track orders via USSD (Africa's Talking compatible).
+          Webhook URL: <code className="bg-gray-100 px-1 py-0.5 rounded text-xs">/api/ussd</code>
+        </p>
+
+        {/* Enable toggle */}
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <p className="text-xs font-semibold text-gray-700">Enable USSD channel</p>
+            <p className="text-xs text-gray-400 mt-0.5">Customers dial your short code to shop without internet</p>
+          </div>
+          <button
+            onClick={() => setUssdEnabled(v => !v)}
+            className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+            style={{ backgroundColor: ussdEnabled ? ACCENT : '#d1d5db' }}>
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${ussdEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+          </button>
+        </div>
+
+        {/* Service code */}
+        <div className="mb-4">
+          <label className="text-xs font-medium text-gray-600 block mb-1">Africa's Talking Service Code</label>
+          <input
+            type="text" value={ussdServiceCode}
+            onChange={e => setUssdServiceCode(e.target.value)}
+            placeholder="*384*XXXXX#"
+            className="w-full max-w-xs border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-1"
+            style={{ '--tw-ring-color': ACCENT } as any} />
+          <p className="text-[11px] text-gray-400 mt-1">
+            Displayed on the Contact page so customers know how to dial in.
+          </p>
+        </div>
+
+        {/* Webhook reminder */}
+        <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4 text-xs text-blue-700">
+          <strong>Africa's Talking setup:</strong> Point your USSD application's callback URL to{' '}
+          <code className="bg-blue-100 px-1 rounded">{typeof window !== 'undefined' ? window.location.origin : 'https://yourdomain.com'}/api/ussd</code>.
+          Run <code>supabase/ussd-migration.sql</code> first to add the <code>source</code> column to orders.
+        </div>
+
+        <div className="flex justify-end">
+          <button
+            onClick={async () => {
+              setSavingUssd(true)
+              try {
+                await Promise.all([
+                  saveStoreSetting('ussd_enabled', ussdEnabled),
+                  saveStoreSetting('ussd_service_code', ussdServiceCode),
+                ])
+                setSavedUssd(true); setTimeout(() => setSavedUssd(false), 2500)
+                toast.success('USSD settings saved')
+              } catch { toast.error('Save failed') } finally { setSavingUssd(false) }
+            }}
+            disabled={savingUssd}
+            className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded-xl text-white hover:opacity-90 disabled:opacity-60"
+            style={{ backgroundColor: savedUssd ? '#16a34a' : ACCENT }}>
+            {savedUssd ? <><Check size={13} /> Saved</>
+              : savingUssd ? <><Save size={13} className="animate-pulse" /> Saving…</>
               : <><Save size={13} /> Save</>}
           </button>
         </div>
