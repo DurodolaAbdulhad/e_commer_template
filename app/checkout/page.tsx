@@ -67,8 +67,12 @@ export default function CheckoutPage() {
   )
   const [mounted,          setMounted]          = useState(false)
   const [shippingSettings,    setShippingSettings]    = useState<any>(null)
-  const [shipMethod,          setShipMethod]          = useState<'store' | 'self' | 'pickup'>('store')
+  const [shipMethod,          setShipMethod]          = useState<'store' | 'self' | 'pickup' | 'courier'>('store')
   const [selectedPickupPoint, setSelectedPickupPoint] = useState<string>((client as any).pickupPoints?.[0]?.id ?? '')
+  const [courierRates,        setCourierRates]        = useState<any[]>([])
+  const [fetchingRates,       setFetchingRates]       = useState(false)
+  const [selectedRate,        setSelectedRate]        = useState<any>(null)
+  const [anyCourierEnabled,   setAnyCourierEnabled]   = useState(false)
   const [klumpKey,         setKlumpKey]         = useState(process.env.NEXT_PUBLIC_KLUMP_PUBLIC_KEY ?? '')
   const [bnplMinAmount,    setBnplMinAmount]    = useState(10000)
   const [agentCode,        setAgentCode]        = useState<string | null>(null)
@@ -76,6 +80,17 @@ export default function CheckoutPage() {
   useEffect(() => {
     setMounted(true)
     loadShippingSettings().then(s => setShippingSettings(s)).catch(() => {})
+    // Check if any 3PL courier is enabled by admin
+    import('@/lib/admin-db').then(({ getStoreSetting }) => {
+      Promise.all([
+        getStoreSetting('kwik_enabled'),
+        getStoreSetting('sendbox_enabled'),
+        getStoreSetting('gig_enabled'),
+      ]).then(([k, s, g]) => {
+        const anyOn = [k, s, g].some(v => v === true || v === 'true')
+        setAnyCourierEnabled(anyOn)
+      }).catch(() => {})
+    }).catch(() => {})
     // Read agent referral code captured from ?ref= URL param
     try { setAgentCode(localStorage.getItem('agent_ref') || null) } catch {}
     // Load BNPL settings from DB (overrides env var if set)
@@ -134,7 +149,9 @@ export default function CheckoutPage() {
     ? selfFee
     : shipMethod === 'pickup'
       ? 0
-      : getShippingCost(subtotal, shippingSettings, form.state, form.area)
+      : shipMethod === 'courier'
+        ? (selectedRate?.price ?? 0)
+        : getShippingCost(subtotal, shippingSettings, form.state, form.area)
 
   // Derive selectable sub-areas for the chosen state (from zones that have per-area rates)
   const areaOptions: string[] = (() => {
@@ -352,7 +369,8 @@ export default function CheckoutPage() {
           wallet_email:      walletDiscount > 0 ? form.email : null,
           loyalty_points_used: loyaltyDiscount > 0 ? Math.ceil(loyaltyDiscount / nairaPerPoint) : null,
           loyalty_email:     loyaltyDiscount > 0 ? form.email : null,
-          delivery_method:   shipMethod === 'self' ? 'self_logistics' : shipMethod === 'pickup' ? 'pickup' : 'store_delivery',
+          delivery_method:   shipMethod === 'self' ? 'self_logistics' : shipMethod === 'pickup' ? 'pickup' : shipMethod === 'courier' ? 'courier' : 'store_delivery',
+          ...(shipMethod === 'courier' && selectedRate ? { shipping_provider: selectedRate.provider } : {}),
           pickup_point_id:   shipMethod === 'pickup' ? selectedPickupPoint : null,
           pickup_point_name: shipMethod === 'pickup'
             ? pickupPoints.find(p => p.id === selectedPickupPoint)?.name ?? null
@@ -456,7 +474,8 @@ export default function CheckoutPage() {
       coupon_code: couponApplied || null,
       gift_card_code: giftCardApplied || null,
       auto_discount: autoDiscount?.name || null,
-      delivery_method:   shipMethod === 'self' ? 'self_logistics' : shipMethod === 'pickup' ? 'pickup' : 'store_delivery',
+      delivery_method:   shipMethod === 'self' ? 'self_logistics' : shipMethod === 'pickup' ? 'pickup' : shipMethod === 'courier' ? 'courier' : 'store_delivery',
+      ...(shipMethod === 'courier' && selectedRate ? { shipping_provider: selectedRate.provider } : {}),
       pickup_point_id:   shipMethod === 'pickup' ? selectedPickupPoint : null,
       pickup_point_name: shipMethod === 'pickup' ? pickupPoints.find(p => p.id === selectedPickupPoint)?.name ?? null : null,
       agent_code:        agentCode || null,
@@ -524,7 +543,7 @@ export default function CheckoutPage() {
         coupon_code: couponApplied || null,
         gift_card_code: giftCardApplied || null,
         auto_discount: autoDiscount?.name || null,
-        delivery_method: shipMethod === 'self' ? 'self_logistics' : shipMethod === 'pickup' ? 'pickup' : 'store_delivery',
+        delivery_method: shipMethod === 'self' ? 'self_logistics' : shipMethod === 'pickup' ? 'pickup' : shipMethod === 'courier' ? 'courier' : 'store_delivery',
         pickup_point_id: shipMethod === 'pickup' ? selectedPickupPoint : null,
         pickup_point_name: shipMethod === 'pickup' ? pickupPoints.find(p => p.id === selectedPickupPoint)?.name ?? null : null,
         agent_code: agentCode || null,
@@ -578,7 +597,7 @@ export default function CheckoutPage() {
         coupon_code: couponApplied || null,
         gift_card_code: giftCardApplied || null,
         auto_discount: autoDiscount?.name || null,
-        delivery_method: shipMethod === 'self' ? 'self_logistics' : shipMethod === 'pickup' ? 'pickup' : 'store_delivery',
+        delivery_method: shipMethod === 'self' ? 'self_logistics' : shipMethod === 'pickup' ? 'pickup' : shipMethod === 'courier' ? 'courier' : 'store_delivery',
         pickup_point_id: shipMethod === 'pickup' ? selectedPickupPoint : null,
         pickup_point_name: shipMethod === 'pickup' ? pickupPoints.find(p => p.id === selectedPickupPoint)?.name ?? null : null,
         agent_code: agentCode || null,
@@ -650,7 +669,7 @@ export default function CheckoutPage() {
             coupon_code: couponApplied || null,
             gift_card_code: giftCardApplied || null,
             auto_discount: autoDiscount?.name || null,
-            delivery_method: shipMethod === 'self' ? 'self_logistics' : shipMethod === 'pickup' ? 'pickup' : 'store_delivery',
+            delivery_method: shipMethod === 'self' ? 'self_logistics' : shipMethod === 'pickup' ? 'pickup' : shipMethod === 'courier' ? 'courier' : 'store_delivery',
             pickup_point_id: shipMethod === 'pickup' ? selectedPickupPoint : null,
             pickup_point_name: shipMethod === 'pickup' ? pickupPoints.find(p => p.id === selectedPickupPoint)?.name ?? null : null,
             agent_code: agentCode || null,
@@ -713,7 +732,7 @@ export default function CheckoutPage() {
         coupon_code: couponApplied || null,
         gift_card_code: giftCardApplied || null,
         auto_discount: autoDiscount?.name || null,
-        delivery_method: shipMethod === 'self' ? 'self_logistics' : shipMethod === 'pickup' ? 'pickup' : 'store_delivery',
+        delivery_method: shipMethod === 'self' ? 'self_logistics' : shipMethod === 'pickup' ? 'pickup' : shipMethod === 'courier' ? 'courier' : 'store_delivery',
         pickup_point_id: shipMethod === 'pickup' ? selectedPickupPoint : null,
         pickup_point_name: shipMethod === 'pickup' ? pickupPoints.find(p => p.id === selectedPickupPoint)?.name ?? null : null,
         agent_code: agentCode || null,
@@ -837,8 +856,8 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {/* Delivery method — shown when self-logistics OR pickup points are configured */}
-              {(shippingSettings?.selfLogisticsEnabled || pickupPoints.length > 0) && (
+              {/* Delivery method — shown when self-logistics OR pickup points OR couriers configured */}
+              {(shippingSettings?.selfLogisticsEnabled || pickupPoints.length > 0 || anyCourierEnabled) && (
                 <div className="bg-white border border-gray-100 rounded-xl p-5 space-y-3">
                   <h2 className="font-bold text-gray-800 text-sm uppercase tracking-wide">Delivery Method</h2>
 
@@ -928,6 +947,72 @@ export default function CheckoutPage() {
                               </div>
                               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300 group-hover:text-gray-500 flex-shrink-0"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                             </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 3PL Courier delivery — only shown when admin has enabled at least one courier */}
+                  {anyCourierEnabled && (
+                    <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${shipMethod === 'courier' ? 'border-red-400 bg-red-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                      <input type="radio" name="shipMethod" value="courier" checked={shipMethod === 'courier'}
+                        onChange={() => { setShipMethod('courier'); setCourierRates([]); setSelectedRate(null) }}
+                        className="mt-0.5 accent-red-500" />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-semibold text-gray-800">Courier Delivery</p>
+                          <span className="text-xs text-gray-400">Live rates</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-0.5">Kwik · Sendbox · GIG — get a price after entering your address</p>
+                      </div>
+                    </label>
+                  )}
+
+                  {/* Courier rate picker — shown after address is entered */}
+                  {shipMethod === 'courier' && anyCourierEnabled && (
+                    <div className="rounded-xl border border-dashed border-gray-200 p-4 bg-gray-50 space-y-3">
+                      <button
+                        type="button"
+                        disabled={fetchingRates || !form.address || !form.city || !form.state}
+                        onClick={async () => {
+                          if (!form.address || !form.city || !form.state) return
+                          setFetchingRates(true); setCourierRates([]); setSelectedRate(null)
+                          try {
+                            const res = await fetch('/api/shipping/rates', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                origin:      { name: '', phone: '', address: '', city: 'Lagos', state: 'Lagos', country: 'Nigeria' },
+                                destination: { name: form.fullName, phone: form.phone, address: form.address, city: form.city, state: form.state, country: 'Nigeria' },
+                                package:     { weight: 1, description: 'Order', value: subtotal },
+                              }),
+                            })
+                            const json = await res.json()
+                            setCourierRates(json.rates ?? [])
+                            if ((json.rates ?? []).length === 0) toast.error(json.message ?? 'No rates available for this destination')
+                          } catch { toast.error('Could not fetch shipping rates') }
+                          finally { setFetchingRates(false) }
+                        }}
+                        className="w-full py-2 text-sm font-semibold rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                      >
+                        {fetchingRates ? 'Getting rates…' : form.address && form.city && form.state ? 'Get Delivery Rates' : 'Fill in address above first'}
+                      </button>
+                      {courierRates.length > 0 && (
+                        <div className="space-y-2">
+                          {courierRates.map((rate: any, i: number) => (
+                            <label key={i}
+                              className={`flex items-center justify-between gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${selectedRate?.service === rate.service && selectedRate?.provider === rate.provider ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
+                              <div className="flex items-center gap-3">
+                                <input type="radio" name="courierRate" checked={selectedRate?.service === rate.service && selectedRate?.provider === rate.provider}
+                                  onChange={() => setSelectedRate(rate)} className="accent-red-500 shrink-0" />
+                                <div>
+                                  <p className="text-xs font-bold text-gray-800">{rate.providerLabel}</p>
+                                  <p className="text-[10px] text-gray-500">{rate.service} · {rate.estimatedDays}</p>
+                                </div>
+                              </div>
+                              <span className="text-sm font-bold text-gray-800 shrink-0">{formatPrice(rate.price)}</span>
+                            </label>
                           ))}
                         </div>
                       )}

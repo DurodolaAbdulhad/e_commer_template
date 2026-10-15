@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { Upload, Loader2, Check, Save, Image as ImageIcon, Type, RefreshCw, Globe, Smile, X, Palette, Radio, Bot, Bell, Layers, Plus, Trash2, Users, DollarSign, Phone } from 'lucide-react'
+import { Upload, Loader2, Check, Save, Image as ImageIcon, Type, RefreshCw, Globe, Smile, X, Palette, Radio, Bot, Bell, Layers, Plus, Trash2, Users, DollarSign, Phone, Truck } from 'lucide-react'
 import { getStoreSetting, saveStoreSetting, getComboTiers, saveComboTiers, getPricingTiers, savePricingTiers, getFxSettings, saveFxSettings } from '@/lib/admin-db'
 import { client } from '@/config/client'
 import toast from 'react-hot-toast'
@@ -83,6 +83,23 @@ export default function SettingsPage() {
   const [savingUssd,      setSavingUssd]      = useState(false)
   const [savedUssd,       setSavedUssd]       = useState(false)
 
+  // Shipping / 3PL couriers
+  const [kwikEnabled,        setKwikEnabled]        = useState(false)
+  const [sendboxEnabled,     setSendboxEnabled]     = useState(false)
+  const [gigEnabled,         setGigEnabled]         = useState(false)
+  const [kwikKey,            setKwikKey]            = useState('')
+  const [sendboxKey,         setSendboxKey]         = useState('')
+  const [gigClientId,        setGigClientId]        = useState('')
+  const [gigClientSecret,    setGigClientSecret]    = useState('')
+  const [gigOriginCode,      setGigOriginCode]      = useState('IKEJA-HQ')
+  const [shipOriginName,     setShipOriginName]     = useState('')
+  const [shipOriginPhone,    setShipOriginPhone]    = useState('')
+  const [shipOriginAddress,  setShipOriginAddress]  = useState('')
+  const [shipOriginCity,     setShipOriginCity]     = useState('Lagos')
+  const [shipOriginState,    setShipOriginState]    = useState('Lagos')
+  const [savingShipping,     setSavingShipping]     = useState(false)
+  const [savedShipping,      setSavedShipping]      = useState(false)
+
   // FX / USD–NGN rate
   const [fxEnabled,     setFxEnabled]     = useState(false)
   const [fxRate,        setFxRate]        = useState<number | string>('')
@@ -150,6 +167,25 @@ export default function SettingsPage() {
     })
     getStoreSetting('ussd_enabled').then(v => { if (v !== null && v !== undefined) setUssdEnabled(v !== '0' && v !== false) })
     getStoreSetting('ussd_service_code').then(v => { if (v) setUssdServiceCode(v as string) })
+    // Shipping / 3PL couriers
+    getStoreSetting('kwik_enabled').then(v    => { if (v !== null && v !== undefined) setKwikEnabled(v !== '0' && v !== false) })
+    getStoreSetting('sendbox_enabled').then(v => { if (v !== null && v !== undefined) setSendboxEnabled(v !== '0' && v !== false) })
+    getStoreSetting('gig_enabled').then(v     => { if (v !== null && v !== undefined) setGigEnabled(v !== '0' && v !== false) })
+    getStoreSetting('kwik_secret_key').then(v   => { if (v) setKwikKey(v as string) })
+    getStoreSetting('sendbox_api_key').then(v   => { if (v) setSendboxKey(v as string) })
+    getStoreSetting('gig_client_id').then(v     => { if (v) setGigClientId(v as string) })
+    getStoreSetting('gig_client_secret').then(v => { if (v) setGigClientSecret(v as string) })
+    getStoreSetting('gig_origin_code').then(v   => { if (v) setGigOriginCode(v as string) })
+    getStoreSetting('shipping_origin').then(v => {
+      if (v && typeof v === 'object') {
+        const o = v as any
+        if (o.name)    setShipOriginName(o.name)
+        if (o.phone)   setShipOriginPhone(o.phone)
+        if (o.address) setShipOriginAddress(o.address)
+        if (o.city)    setShipOriginCity(o.city)
+        if (o.state)   setShipOriginState(o.state)
+      }
+    })
   }, [])
 
   async function handleFile(file: File) {
@@ -1243,6 +1279,138 @@ export default function SettingsPage() {
             style={{ backgroundColor: savedUssd ? '#16a34a' : ACCENT }}>
             {savedUssd ? <><Check size={13} /> Saved</>
               : savingUssd ? <><Save size={13} className="animate-pulse" /> Saving…</>
+              : <><Save size={13} /> Save</>}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Shipping / 3PL Couriers ─────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-5">
+        <div className="flex items-center gap-2 mb-1">
+          <Truck size={16} style={{ color: ACCENT }} />
+          <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Shipping Providers (3PL)</h3>
+        </div>
+        <p className="text-xs text-gray-500 mb-4">
+          Enable couriers to show live delivery rates at checkout. Customers only see a courier when you activate it here <em>and</em> provide its API key.
+          Run <code className="bg-gray-100 px-1 rounded">supabase/shipping-migration.sql</code> first.
+        </p>
+
+        {/* Store origin address */}
+        <div className="bg-gray-50 rounded-xl p-4 mb-5 space-y-3">
+          <p className="text-xs font-bold text-gray-600 uppercase tracking-wide">Pickup / Origin Address</p>
+          <p className="text-[10px] text-gray-400">Used as the pickup location when requesting rates or booking a waybill.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wider block mb-1">Contact Name</label>
+              <input value={shipOriginName} onChange={e => setShipOriginName(e.target.value)}
+                placeholder="Store name / contact"
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-gray-400" />
+            </div>
+            <div>
+              <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wider block mb-1">Phone</label>
+              <input value={shipOriginPhone} onChange={e => setShipOriginPhone(e.target.value)}
+                placeholder="+234 800 000 0000"
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-gray-400" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wider block mb-1">Street Address</label>
+              <input value={shipOriginAddress} onChange={e => setShipOriginAddress(e.target.value)}
+                placeholder="123 Broad Street, Victoria Island"
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-gray-400" />
+            </div>
+            <div>
+              <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wider block mb-1">City</label>
+              <input value={shipOriginCity} onChange={e => setShipOriginCity(e.target.value)}
+                placeholder="Lagos"
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-gray-400" />
+            </div>
+            <div>
+              <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wider block mb-1">State</label>
+              <input value={shipOriginState} onChange={e => setShipOriginState(e.target.value)}
+                placeholder="Lagos"
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-gray-400" />
+            </div>
+          </div>
+        </div>
+
+        {/* Per-courier cards */}
+        {[
+          {
+            key: 'kwik', label: 'Kwik Delivery', desc: 'Lagos same-day delivery (bike / van)',
+            enabled: kwikEnabled, setEnabled: setKwikEnabled,
+            fields: [{ label: 'Secret Key', value: kwikKey, set: setKwikKey, placeholder: 'kwik_sk_live_…' }],
+          },
+          {
+            key: 'sendbox', label: 'Sendbox', desc: 'Interstate courier + real-time tracking',
+            enabled: sendboxEnabled, setEnabled: setSendboxEnabled,
+            fields: [{ label: 'API Key', value: sendboxKey, set: setSendboxKey, placeholder: 'sb_live_…' }],
+          },
+          {
+            key: 'gig', label: 'GIG Logistics', desc: 'Nation-wide interstate & haulage',
+            enabled: gigEnabled, setEnabled: setGigEnabled,
+            fields: [
+              { label: 'Client ID',     value: gigClientId,     set: setGigClientId,     placeholder: 'GIG client ID' },
+              { label: 'Client Secret', value: gigClientSecret, set: setGigClientSecret, placeholder: 'GIG client secret' },
+              { label: 'Origin Station Code', value: gigOriginCode, set: setGigOriginCode, placeholder: 'IKEJA-HQ' },
+            ],
+          },
+        ].map(provider => (
+          <div key={provider.key} className="border border-gray-100 rounded-xl p-4 mb-3 last:mb-0">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <p className="text-xs font-bold text-gray-700">{provider.label}</p>
+                <p className="text-[10px] text-gray-400 mt-0.5">{provider.desc}</p>
+              </div>
+              <button
+                onClick={() => provider.setEnabled((v: boolean) => !v)}
+                className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0"
+                style={{ backgroundColor: provider.enabled ? ACCENT : '#d1d5db' }}>
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${provider.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
+            {provider.enabled && (
+              <div className="space-y-2 pt-2 border-t border-gray-50 mt-2">
+                {provider.fields.map(f => (
+                  <div key={f.label}>
+                    <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wider block mb-1">{f.label}</label>
+                    <input type="password" value={f.value} onChange={e => f.set(e.target.value)}
+                      placeholder={f.placeholder}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-gray-400 font-mono" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+
+        <div className="flex justify-end mt-4">
+          <button
+            onClick={async () => {
+              setSavingShipping(true)
+              try {
+                await Promise.all([
+                  saveStoreSetting('kwik_enabled',    kwikEnabled),
+                  saveStoreSetting('sendbox_enabled', sendboxEnabled),
+                  saveStoreSetting('gig_enabled',     gigEnabled),
+                  saveStoreSetting('kwik_secret_key',   kwikKey),
+                  saveStoreSetting('sendbox_api_key',   sendboxKey),
+                  saveStoreSetting('gig_client_id',     gigClientId),
+                  saveStoreSetting('gig_client_secret', gigClientSecret),
+                  saveStoreSetting('gig_origin_code',   gigOriginCode),
+                  saveStoreSetting('shipping_origin', {
+                    name: shipOriginName, phone: shipOriginPhone,
+                    address: shipOriginAddress, city: shipOriginCity, state: shipOriginState,
+                  }),
+                ])
+                setSavedShipping(true); setTimeout(() => setSavedShipping(false), 2500)
+                toast.success('Shipping settings saved')
+              } catch { toast.error('Save failed') } finally { setSavingShipping(false) }
+            }}
+            disabled={savingShipping}
+            className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded-xl text-white hover:opacity-90 disabled:opacity-60"
+            style={{ backgroundColor: savedShipping ? '#16a34a' : ACCENT }}>
+            {savedShipping ? <><Check size={13} /> Saved</>
+              : savingShipping ? <><Save size={13} className="animate-pulse" /> Saving…</>
               : <><Save size={13} /> Save</>}
           </button>
         </div>

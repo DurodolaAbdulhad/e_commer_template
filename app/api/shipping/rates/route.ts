@@ -25,19 +25,20 @@ export async function POST(req: NextRequest) {
 
     const tasks: Promise<any>[] = []
 
-    if (requested.includes('sendbox') && keys.sendboxApiKey) {
+    // A provider is available only when admin has BOTH enabled it AND configured its API key
+    if (requested.includes('sendbox') && keys.sendboxEnabled && keys.sendboxApiKey) {
       tasks.push(
         sendboxRates(origin, destination, pkg, keys.sendboxApiKey)
           .catch(e => ({ error: e.message, provider: 'sendbox' }))
       )
     }
-    if (requested.includes('gig') && keys.gigClientId && keys.gigClientSecret) {
+    if (requested.includes('gig') && keys.gigEnabled && keys.gigClientId && keys.gigClientSecret) {
       tasks.push(
         gigRates(origin, destination, pkg, keys.gigClientId, keys.gigClientSecret, keys.gigOriginCode)
           .catch(e => ({ error: e.message, provider: 'gig' }))
       )
     }
-    if (requested.includes('kwik') && keys.kwikSecretKey) {
+    if (requested.includes('kwik') && keys.kwikEnabled && keys.kwikSecretKey) {
       tasks.push(
         kwikRates(origin, destination, pkg, keys.kwikSecretKey)
           .catch(e => ({ error: e.message, provider: 'kwik' }))
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (tasks.length === 0) {
-      return NextResponse.json({ rates: [], message: 'No shipping providers configured. Add API keys in Admin → Shipping → API Keys.' })
+      return NextResponse.json({ rates: [], message: 'No shipping providers enabled. Activate a provider in Admin → Settings → Shipping.' })
     }
 
     const results = await Promise.allSettled(tasks)
