@@ -14,7 +14,7 @@ import Link from 'next/link'
 import { ChevronRight, Tag, ShieldCheck, Truck, Lock, MessageCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import CheckoutRecommendations from '@/components/checkout/CheckoutRecommendations'
-import { validateCoupon, redeemGiftCard, evaluateAutoDiscount, getCustomerTier } from '@/lib/admin-db'
+import { validateCoupon, redeemGiftCard, evaluateAutoDiscount, getCustomerTier, getPricingTiers } from '@/lib/admin-db'
 
 const ACCENT = '#e84c3d'
 
@@ -59,6 +59,7 @@ export default function CheckoutPage() {
   const [loyaltyPoints,    setLoyaltyPoints]    = useState(0)
   const [loyaltyApplied,   setLoyaltyApplied]   = useState(false)
   const [customerTier,     setCustomerTier]     = useState<string | null>(null)
+  const [pricingTiers,     setPricingTiers]     = useState<any[]>((client as any).pricingTiers ?? [])
   const [loading,          setLoading]          = useState(false)
   const [klumpLoaded,      setKlumpLoaded]      = useState(false)
   const [paymentMethod,    setPaymentMethod]    = useState<'online' | 'pod' | 'bank' | 'whatsapp' | 'bnpl'>(
@@ -106,10 +107,9 @@ export default function CheckoutPage() {
 
   if (!mounted) return null
 
-  // Pricing tiers — multi-tier reseller/distributor/VIP discount (Task #13)
-  // Tier is fetched server-side by email and stored in site_settings, not localStorage
-  const activeTierConfig = (client as any).pricingTiers?.length
-    ? (client as any).pricingTiers.find((t: any) => t.tag === customerTier)
+  // Pricing tiers — multi-tier reseller/distributor/VIP discount
+  const activeTierConfig = pricingTiers.length
+    ? pricingTiers.find((t: any) => t.tag === customerTier)
     : null
   const tierDiscount = activeTierConfig && subtotal >= (activeTierConfig.minOrder ?? 0)
     ? Math.floor(subtotal * activeTierConfig.discountPercent / 100)
@@ -118,7 +118,7 @@ export default function CheckoutPage() {
   // Legacy wholesale — only used if pricingTiers not configured
   const wholesaleTag = client.wholesale?.tag ?? 'wholesale'
   const userMetaTags: string[] = (user as any)?.user_metadata?.tags ?? []
-  const isWholesale = !(client as any).pricingTiers?.length && client.wholesale?.enabled && userMetaTags.includes(wholesaleTag)
+  const isWholesale = !pricingTiers.length && client.wholesale?.enabled && userMetaTags.includes(wholesaleTag)
   const wholesaleDiscount = isWholesale
     ? Math.floor(subtotal * (client.wholesale.discountPercent ?? 0) / 100)
     : 0
@@ -162,10 +162,11 @@ export default function CheckoutPage() {
   async function checkWalletBalance(email: string) {
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return
     try {
-      const [walletRes, loyaltyRes, tier] = await Promise.all([
+      const [walletRes, loyaltyRes, tier, dbTiers] = await Promise.all([
         fetch(`/api/wallet/balance?email=${encodeURIComponent(email.trim())}`),
         client.features?.loyalty ? fetch(`/api/loyalty/balance?email=${encodeURIComponent(email.trim())}`) : Promise.resolve(null),
         getCustomerTier(email.trim()) as Promise<string | null>,
+        getPricingTiers() as Promise<any[]>,
       ])
       if (walletRes.ok) {
         const { balance } = await walletRes.json()
@@ -178,6 +179,7 @@ export default function CheckoutPage() {
         if ((points ?? 0) <= 0) setLoyaltyApplied(false)
       }
       setCustomerTier(tier)
+      if (dbTiers?.length) setPricingTiers(dbTiers)
     } catch {}
   }
 
@@ -807,7 +809,7 @@ export default function CheckoutPage() {
                     <Label>Email Address *</Label>
                     <Input type="email" value={form.email} onChange={v => set('email', v)} onBlur={() => checkWalletBalance(form.email)} placeholder="you@example.com" />
                     {customerTier && (() => {
-                      const tc = (client as any).pricingTiers?.find((t: any) => t.tag === customerTier)
+                      const tc = pricingTiers.find((t: any) => t.tag === customerTier)
                       return tc ? (
                         <p className="text-xs mt-1 font-semibold" style={{ color: tc.color }}>
                           ✓ {tc.label} pricing applied — {tc.discountPercent}% off your order

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { ShoppingBag, Heart, User, Package, ChevronRight, Loader2 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useWishlist } from '@/hooks/useWishlist'
-import { getCustomerOrders } from '@/lib/admin-db'
+import { getCustomerOrders, getCustomerTier, getPricingTiers } from '@/lib/admin-db'
 import { formatPrice } from '@/lib/utils'
 import { client } from '@/config/client'
 
@@ -15,16 +15,23 @@ const NAVY   = '#1a2638'
 export default function AccountDashboard() {
   const { user } = useAuth()
   const { items: wishlistItems } = useWishlist()
-  const [orders,  setOrders]  = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const [orders,       setOrders]       = useState<any[]>([])
+  const [loading,      setLoading]      = useState(true)
+  const [tierTag,      setTierTag]      = useState<string | null>(null)
+  const [tierConfig,   setTierConfig]   = useState<any | null>(null)
 
   useEffect(() => {
     if (!user?.email) return
     setLoading(true)
-    getCustomerOrders(user.email)
-      .then(setOrders)
-      .catch(() => setOrders([]))
-      .finally(() => setLoading(false))
+    Promise.all([
+      getCustomerOrders(user.email),
+      getCustomerTier(user.email),
+      getPricingTiers(),
+    ]).then(([ords, tier, tiers]) => {
+      setOrders(ords)
+      setTierTag(tier)
+      if (tier) setTierConfig(tiers.find((t: any) => t.tag === tier) ?? null)
+    }).catch(() => setOrders([])).finally(() => setLoading(false))
   }, [user?.email])
 
   const name = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Customer'
@@ -41,7 +48,14 @@ export default function AccountDashboard() {
       <div className="rounded-lg px-5 py-5 mb-5 text-white" style={{ backgroundColor: NAVY }}>
         <p className="text-xs text-blue-200 mb-0.5">Welcome back,</p>
         <h2 className="text-lg font-bold" style={{ fontFamily: 'var(--font-heading)' }}>{name}</h2>
-        <p className="text-xs text-blue-200 mt-1 opacity-75">
+        {tierConfig && (
+          <span
+            className="inline-block mt-2 text-[10px] font-bold px-2.5 py-1 rounded-full"
+            style={{ backgroundColor: `${tierConfig.color}25`, color: tierConfig.color, border: `1px solid ${tierConfig.color}50` }}>
+            {tierConfig.label} — {tierConfig.discountPercent}% off all orders
+          </span>
+        )}
+        <p className="text-xs text-blue-200 mt-1.5 opacity-75">
           From your account dashboard you can track orders, manage your wishlist, and update your profile.
         </p>
       </div>

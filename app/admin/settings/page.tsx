@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { Upload, Loader2, Check, Save, Image as ImageIcon, Type, RefreshCw, Globe, Smile, X, Palette, Radio, Bot, Bell, Layers, Plus, Trash2 } from 'lucide-react'
-import { getStoreSetting, saveStoreSetting, getComboTiers, saveComboTiers } from '@/lib/admin-db'
+import { Upload, Loader2, Check, Save, Image as ImageIcon, Type, RefreshCw, Globe, Smile, X, Palette, Radio, Bot, Bell, Layers, Plus, Trash2, Users } from 'lucide-react'
+import { getStoreSetting, saveStoreSetting, getComboTiers, saveComboTiers, getPricingTiers, savePricingTiers } from '@/lib/admin-db'
 import { client } from '@/config/client'
 import toast from 'react-hot-toast'
 
@@ -72,6 +72,11 @@ export default function SettingsPage() {
   const [savingBnpl,     setSavingBnpl]     = useState(false)
   const [savedBnpl,      setSavedBnpl]      = useState(false)
 
+  type PricingTierDef = { tag: string; label: string; discountPercent: number; minOrder: number; color: string }
+  const [pricingTierDefs,  setPricingTierDefs]  = useState<PricingTierDef[]>([])
+  const [savingPricingT,   setSavingPricingT]   = useState(false)
+  const [savedPricingT,    setSavedPricingT]    = useState(false)
+
   // Combo builder tiers
   const [comboTiers,    setComboTiers]    = useState<{ min_spend: number; discount_pct: number }[]>([])
   const [savingTiers,   setSavingTiers]   = useState(false)
@@ -120,6 +125,7 @@ export default function SettingsPage() {
     getStoreSetting('popup_discount_code').then(v => { if (v) setPopupCode(v) })
     getStoreSetting('popup_delay').then(v => { if (v) setPopupDelay(Number(v)) })
     getComboTiers().then(t => setComboTiers(t))
+    getPricingTiers().then(t => setPricingTierDefs(t))
     getStoreSetting('bnpl_enabled').then(v    => { if (v !== null && v !== undefined) setBnplEnabled(v !== '0' && v !== false) })
     getStoreSetting('klump_public_key').then(v => { if (v) setKlumpPubKey(v as string) })
     getStoreSetting('bnpl_min_amount').then(v  => { if (v !== null) setBnplMinAmount(Number(v)) })
@@ -951,6 +957,104 @@ export default function SettingsPage() {
               style={{ backgroundColor: savedBnpl ? '#16a34a' : ACCENT }}>
               {savedBnpl ? <><Check size={13} /> Saved</>
                 : savingBnpl ? <><Save size={13} className="animate-pulse" /> Saving…</>
+                : <><Save size={13} /> Save</>}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Pricing Tiers ──────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
+          <Users size={13} className="text-gray-500" />
+          <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Reseller / Distributor Pricing Tiers</h2>
+        </div>
+        <div className="px-5 py-4 flex flex-col gap-4">
+          <p className="text-xs text-gray-500">Configure percentage discounts for each tier. Assign customers to tiers from the Customers page.</p>
+
+          <div className="flex flex-col gap-2">
+            {pricingTierDefs.map((tier, i) => (
+              <div key={tier.tag} className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl">
+                <span
+                  className="w-3 h-3 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: tier.color || '#6b7280' }}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <input
+                      type="text"
+                      value={tier.label}
+                      onChange={e => { const t = [...pricingTierDefs]; t[i] = { ...t[i], label: e.target.value }; setPricingTierDefs(t); setSavedPricingT(false) }}
+                      className="text-xs font-semibold text-gray-700 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-gray-400 outline-none w-32"
+                    />
+                    <span className="text-[10px] text-gray-400 font-mono">#{tier.tag}</span>
+                  </div>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <label className="flex items-center gap-1 text-xs text-gray-500">
+                      Discount:
+                      <input
+                        type="number" min={0} max={100}
+                        value={tier.discountPercent}
+                        onChange={e => { const t = [...pricingTierDefs]; t[i] = { ...t[i], discountPercent: Number(e.target.value) }; setPricingTierDefs(t); setSavedPricingT(false) }}
+                        className="w-14 px-1.5 py-0.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-gray-400 font-mono ml-1"
+                      />
+                      <span className="text-gray-400">%</span>
+                    </label>
+                    <label className="flex items-center gap-1 text-xs text-gray-500">
+                      Min order (₦):
+                      <input
+                        type="number" min={0}
+                        value={tier.minOrder ?? 0}
+                        onChange={e => { const t = [...pricingTierDefs]; t[i] = { ...t[i], minOrder: Number(e.target.value) }; setPricingTierDefs(t); setSavedPricingT(false) }}
+                        className="w-24 px-1.5 py-0.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-gray-400 font-mono ml-1"
+                      />
+                    </label>
+                    <label className="flex items-center gap-1 text-xs text-gray-500">
+                      Color:
+                      <input
+                        type="color"
+                        value={tier.color || '#6b7280'}
+                        onChange={e => { const t = [...pricingTierDefs]; t[i] = { ...t[i], color: e.target.value }; setPricingTierDefs(t); setSavedPricingT(false) }}
+                        className="w-7 h-5 rounded border border-gray-200 cursor-pointer ml-1"
+                      />
+                    </label>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setPricingTierDefs(prev => prev.filter((_, j) => j !== i)); setSavedPricingT(false) }}
+                  className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0">
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={() => {
+              const tag = `tier_${Date.now()}`
+              setPricingTierDefs(prev => [...prev, { tag, label: 'New Tier', discountPercent: 10, minOrder: 0, color: '#6b7280' }])
+              setSavedPricingT(false)
+            }}
+            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 transition-colors self-start">
+            <Plus size={13} /> Add tier
+          </button>
+
+          <div className="flex justify-end pt-1">
+            <button
+              onClick={async () => {
+                setSavingPricingT(true)
+                try {
+                  await savePricingTiers(pricingTierDefs)
+                  setSavedPricingT(true)
+                  toast.success('Pricing tiers saved')
+                } catch { toast.error('Failed to save') }
+                finally { setSavingPricingT(false) }
+              }}
+              disabled={savingPricingT}
+              className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded-xl text-white hover:opacity-90 disabled:opacity-60"
+              style={{ backgroundColor: savedPricingT ? '#16a34a' : ACCENT }}>
+              {savedPricingT ? <><Check size={13} /> Saved</>
+                : savingPricingT ? <><Save size={13} className="animate-pulse" /> Saving…</>
                 : <><Save size={13} /> Save</>}
             </button>
           </div>

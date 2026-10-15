@@ -1,16 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getOrders, getCustomerTierMap, setCustomerTier, removeCustomerTier } from '@/lib/admin-db'
-import { client } from '@/config/client'
+import { getOrders, getCustomerTierMap, setCustomerTier, removeCustomerTier, getPricingTiers } from '@/lib/admin-db'
 import { Users, Search, ChevronDown } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { formatPrice } from '@/lib/utils'
 
 const ACCENT = '#e84c3d'
 
-const pricingTiers: Array<{ tag: string; label: string; discountPercent: number; color: string; minOrder?: number }> =
-  (client as any).pricingTiers ?? []
+type PricingTier = { tag: string; label: string; discountPercent: number; color: string; minOrder?: number }
 
 type Customer = {
   email: string
@@ -22,19 +20,22 @@ type Customer = {
 }
 
 export default function CustomersPage() {
-  const [customers, setCustomers]   = useState<Customer[]>([])
-  const [loading, setLoading]       = useState(true)
-  const [saving, setSaving]         = useState<Record<string, boolean>>({})
-  const [search, setSearch]         = useState('')
+  const [customers, setCustomers]     = useState<Customer[]>([])
+  const [pricingTiers, setPricingTiers] = useState<PricingTier[]>([])
+  const [loading, setLoading]         = useState(true)
+  const [saving, setSaving]           = useState<Record<string, boolean>>({})
+  const [search, setSearch]           = useState('')
 
   useEffect(() => {
     async function load() {
       setLoading(true)
       try {
-        const [orders, tierMap] = await Promise.all([
+        const [orders, tierMap, tiers] = await Promise.all([
           getOrders(),
           getCustomerTierMap(),
+          getPricingTiers(),
         ])
+        setPricingTiers(tiers)
         const map = new Map<string, Customer>()
         for (const order of orders) {
           const email = order.address?.email || order.email || ''
