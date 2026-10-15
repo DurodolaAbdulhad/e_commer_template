@@ -68,11 +68,20 @@ export default function CheckoutPage() {
   const [shippingSettings,    setShippingSettings]    = useState<any>(null)
   const [shipMethod,          setShipMethod]          = useState<'store' | 'self' | 'pickup'>('store')
   const [selectedPickupPoint, setSelectedPickupPoint] = useState<string>((client as any).pickupPoints?.[0]?.id ?? '')
-  const klumpKey = process.env.NEXT_PUBLIC_KLUMP_PUBLIC_KEY
+  const [klumpKey,         setKlumpKey]         = useState(process.env.NEXT_PUBLIC_KLUMP_PUBLIC_KEY ?? '')
+  const [bnplMinAmount,    setBnplMinAmount]    = useState(10000)
 
   useEffect(() => {
     setMounted(true)
     loadShippingSettings().then(s => setShippingSettings(s)).catch(() => {})
+    // Load BNPL settings from DB (overrides env var if set)
+    import('@/lib/admin-db').then(({ getStoreSetting }) => {
+      getStoreSetting('bnpl_enabled').then(v => {
+        if (v === false || v === '0' || v === null) return  // disabled → keep env var behaviour
+      })
+      getStoreSetting('klump_public_key').then(v => { if (v) setKlumpKey(v as string) })
+      getStoreSetting('bnpl_min_amount').then(v  => { if (v !== null) setBnplMinAmount(Number(v)) })
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -1113,7 +1122,7 @@ export default function CheckoutPage() {
                 </div>
 
                 {/* Payment method selector */}
-                {(client.features?.payOnDelivery || client.features?.bankTransfer || (client.features?.whatsappOrder && client.whatsapp) || (klumpKey && total >= 10000)) && (
+                {(client.features?.payOnDelivery || client.features?.bankTransfer || (client.features?.whatsappOrder && client.whatsapp) || (klumpKey && total >= bnplMinAmount)) && (
                   <div className="mb-4 space-y-2">
                     <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Payment Method</p>
                     <div className="grid grid-cols-2 gap-2">
@@ -1163,7 +1172,7 @@ export default function CheckoutPage() {
                           WhatsApp
                         </button>
                       )}
-                      {klumpKey && total >= 10000 && (
+                      {klumpKey && total >= bnplMinAmount && (
                         <button type="button" onClick={() => setPaymentMethod('bnpl')}
                           className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-xl border-2 text-xs font-semibold transition-colors"
                           style={{

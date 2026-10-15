@@ -64,6 +64,14 @@ export default function SettingsPage() {
   const [savedAi,      setSavedAi]      = useState(false)
   const [aiKeyMasked,  setAiKeyMasked]  = useState(true)
 
+  // BNPL / Klump
+  const [bnplEnabled,    setBnplEnabled]    = useState(false)
+  const [klumpPubKey,    setKlumpPubKey]    = useState('')
+  const [bnplMinAmount,  setBnplMinAmount]  = useState(10000)
+  const [showKlumpKey,   setShowKlumpKey]   = useState(false)
+  const [savingBnpl,     setSavingBnpl]     = useState(false)
+  const [savedBnpl,      setSavedBnpl]      = useState(false)
+
   // Combo builder tiers
   const [comboTiers,    setComboTiers]    = useState<{ min_spend: number; discount_pct: number }[]>([])
   const [savingTiers,   setSavingTiers]   = useState(false)
@@ -112,6 +120,9 @@ export default function SettingsPage() {
     getStoreSetting('popup_discount_code').then(v => { if (v) setPopupCode(v) })
     getStoreSetting('popup_delay').then(v => { if (v) setPopupDelay(Number(v)) })
     getComboTiers().then(t => setComboTiers(t))
+    getStoreSetting('bnpl_enabled').then(v    => { if (v !== null && v !== undefined) setBnplEnabled(v !== '0' && v !== false) })
+    getStoreSetting('klump_public_key').then(v => { if (v) setKlumpPubKey(v as string) })
+    getStoreSetting('bnpl_min_amount').then(v  => { if (v !== null) setBnplMinAmount(Number(v)) })
   }, [])
 
   async function handleFile(file: File) {
@@ -862,6 +873,90 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {/* BNPL / Installment Payments */}
+      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+          <Layers size={13} className="text-gray-500" />
+          <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wide">Buy Now, Pay Later (BNPL)</h3>
+        </div>
+        <div className="p-5 space-y-4">
+          <p className="text-xs text-gray-500 leading-relaxed">
+            Enable Klump to let customers pay in installments at checkout. Add your Klump public key from{' '}
+            <a href="https://merchant.useklump.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">merchant.useklump.com → Settings → API Keys</a>.
+          </p>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={bnplEnabled}
+              onChange={e => { setBnplEnabled(e.target.checked); setSavedBnpl(false) }}
+              className="w-4 h-4 accent-red-500 rounded" />
+            <span className="text-xs text-gray-700 font-medium">Enable BNPL / Installment payments at checkout</span>
+          </label>
+
+          {bnplEnabled && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Klump Public Key</label>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type={showKlumpKey ? 'text' : 'password'}
+                    value={klumpPubKey}
+                    onChange={e => { setKlumpPubKey(e.target.value); setSavedBnpl(false) }}
+                    placeholder="klump_pk_live_…"
+                    className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400 font-mono"
+                  />
+                  <button onClick={() => setShowKlumpKey(k => !k)}
+                    className="text-xs text-gray-400 px-2 hover:text-gray-600">
+                    {showKlumpKey ? 'Hide' : 'Show'}
+                  </button>
+                  {klumpPubKey && (
+                    <span className="text-[10px] font-semibold text-green-600 bg-green-50 border border-green-200 px-2 py-1 rounded-full whitespace-nowrap">Active</span>
+                  )}
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">Set <code className="bg-gray-100 px-1 rounded">NEXT_PUBLIC_KLUMP_PUBLIC_KEY</code> in .env as a fallback if you prefer not to store it in the DB.</p>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Minimum Order Amount (₦)</label>
+                <input
+                  type="number" min={1000}
+                  value={bnplMinAmount}
+                  onChange={e => { setBnplMinAmount(Number(e.target.value)); setSavedBnpl(false) }}
+                  className="w-40 px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-gray-400 font-mono"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">BNPL option is hidden for orders below this amount.</p>
+              </div>
+              <div className="p-3 bg-violet-50 border border-violet-200 rounded-xl">
+                <p className="text-xs font-semibold text-violet-800 mb-1">Webhook URL (for Klump dashboard)</p>
+                <p className="text-xs text-violet-700 font-mono break-all">{typeof window !== 'undefined' ? `${window.location.origin}/api/klump/webhook` : '/api/klump/webhook'}</p>
+                <p className="text-[10px] text-violet-500 mt-1">Set this in Klump → Settings → Webhooks. Add <code className="bg-violet-100 px-1 rounded">KLUMP_SECRET_KEY</code> to your .env to verify signatures.</p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end pt-1">
+            <button
+              onClick={async () => {
+                setSavingBnpl(true)
+                try {
+                  await saveStoreSetting('bnpl_enabled',      bnplEnabled)
+                  await saveStoreSetting('klump_public_key',  klumpPubKey.trim())
+                  await saveStoreSetting('bnpl_min_amount',   bnplMinAmount)
+                  setSavedBnpl(true)
+                  toast.success('BNPL settings saved')
+                } catch { toast.error('Failed to save') }
+                finally { setSavingBnpl(false) }
+              }}
+              disabled={savingBnpl}
+              className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded-xl text-white hover:opacity-90 disabled:opacity-60"
+              style={{ backgroundColor: savedBnpl ? '#16a34a' : ACCENT }}>
+              {savedBnpl ? <><Check size={13} /> Saved</>
+                : savingBnpl ? <><Save size={13} className="animate-pulse" /> Saving…</>
+                : <><Save size={13} /> Save</>}
+            </button>
+          </div>
+        </div>
+      </div>
+
     </div>
   )
 }

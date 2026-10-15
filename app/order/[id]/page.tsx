@@ -77,7 +77,7 @@ export default function OrderConfirmationPage() {
 
     // For non-Paystack orders skip the verify call
     const pm = stub?.payment_method;
-    if (pm === 'pay_on_delivery' || pm === 'bank_transfer') {
+    if (['pay_on_delivery', 'bank_transfer', 'bnpl', 'whatsapp'].includes(pm)) {
       if (stub) { setOrder(stub); setStatus('success'); }
       else setStatus('failed');
       return;
@@ -499,6 +499,8 @@ export default function OrderConfirmationPage() {
                       value={
                         order?.payment_method === 'pay_on_delivery' ? 'Pay on Delivery' :
                         order?.payment_method === 'bank_transfer' ? 'Bank Transfer' :
+                        order?.payment_method === 'bnpl' ? 'Installment (Klump)' :
+                        order?.payment_method === 'whatsapp' ? 'WhatsApp Order' :
                         client.paymentGateway === 'flutterwave' ? 'Flutterwave' : 'Paystack'
                       }
                     />
@@ -507,6 +509,7 @@ export default function OrderConfirmationPage() {
                       value={
                         order?.payment_method === 'bank_transfer' ? 'Awaiting Transfer' :
                         order?.payment_method === 'pay_on_delivery' ? 'Pay on Delivery' :
+                        order?.payment_method === 'bnpl' ? 'Installment Plan Active' :
                         'Confirmed ✓'
                       }
                       green={order?.payment_method !== 'bank_transfer'}
