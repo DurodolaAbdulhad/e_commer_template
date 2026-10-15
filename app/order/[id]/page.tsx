@@ -38,6 +38,7 @@ export default function OrderConfirmationPage() {
   const [receiptUploading, setReceiptUploading] = useState(false);
   const [receiptUrl, setReceiptUrl] = useState('');
   const [receiptSaved, setReceiptSaved] = useState(false);
+  const [bnplStatus, setBnplStatus] = useState<string | null>(null);
 
   async function handleReceiptUpload(file: File) {
     if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
@@ -80,6 +81,21 @@ export default function OrderConfirmationPage() {
     if (['pay_on_delivery', 'bank_transfer', 'bnpl', 'whatsapp'].includes(pm)) {
       if (stub) { setOrder(stub); setStatus('success'); }
       else setStatus('failed');
+      // For BNPL: poll DB for live bnpl_status (Klump webhook updates it asynchronously)
+      if (pm === 'bnpl' && stub) {
+        const pollBnplStatus = async () => {
+          try {
+            const res = await fetch(`/api/orders/status?ref=${encodeURIComponent(id)}`)
+            if (res.ok) {
+              const data = await res.json()
+              if (data.bnpl_status) setBnplStatus(data.bnpl_status)
+            }
+          } catch {}
+        }
+        pollBnplStatus()
+        const timer = setInterval(pollBnplStatus, 8000)
+        setTimeout(() => clearInterval(timer), 120000)
+      }
       return;
     }
 
@@ -509,10 +525,15 @@ export default function OrderConfirmationPage() {
                       value={
                         order?.payment_method === 'bank_transfer' ? 'Awaiting Transfer' :
                         order?.payment_method === 'pay_on_delivery' ? 'Pay on Delivery' :
-                        order?.payment_method === 'bnpl' ? 'Installment Plan Active' :
+                        order?.payment_method === 'bnpl' ? (
+                          bnplStatus === 'completed' ? 'Installment Plan Completed ✓' :
+                          bnplStatus === 'declined'  ? 'Payment Declined' :
+                          bnplStatus === 'closed'    ? 'Plan Closed' :
+                          'Installment Plan Active'
+                        ) :
                         'Confirmed ✓'
                       }
-                      green={order?.payment_method !== 'bank_transfer'}
+                      green={order?.payment_method !== 'bank_transfer' && bnplStatus !== 'declined'}
                     />
                     <SRow
                       label="Ref"

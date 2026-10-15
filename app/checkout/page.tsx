@@ -93,13 +93,18 @@ export default function CheckoutPage() {
     }).catch(() => {})
     // Read agent referral code captured from ?ref= URL param
     try { setAgentCode(localStorage.getItem('agent_ref') || null) } catch {}
-    // Load BNPL settings from DB (overrides env var if set)
+    // Load BNPL settings from DB — only show Klump if admin has enabled it
     import('@/lib/admin-db').then(({ getStoreSetting }) => {
-      getStoreSetting('bnpl_enabled').then(v => {
-        if (v === false || v === '0' || v === null) return  // disabled → keep env var behaviour
+      Promise.all([
+        getStoreSetting('bnpl_enabled'),
+        getStoreSetting('klump_public_key'),
+        getStoreSetting('bnpl_min_amount'),
+      ]).then(([enabled, key, minAmt]) => {
+        const isEnabled = enabled === true || enabled === 'true' || enabled === 1 || enabled === '1'
+        if (isEnabled && key) setKlumpKey(key as string)
+        else setKlumpKey('')  // hidden unless admin explicitly activates
+        if (minAmt !== null) setBnplMinAmount(Number(minAmt))
       })
-      getStoreSetting('klump_public_key').then(v => { if (v) setKlumpKey(v as string) })
-      getStoreSetting('bnpl_min_amount').then(v  => { if (v !== null) setBnplMinAmount(Number(v)) })
     }).catch(() => {})
   }, [])
 
