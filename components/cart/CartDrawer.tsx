@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { X, ShoppingBag, MessageCircle } from 'lucide-react'
 import { useCart } from '@/hooks/useCart'
 import { client } from '@/config/client'
 import CartItem from './CartItem'
 import { formatPrice } from '@/lib/utils'
+import WhatsAppQuickOrder from '@/components/ui/WhatsAppQuickOrder'
 
 interface Props {
   open: boolean
@@ -15,6 +16,7 @@ interface Props {
 
 export default function CartDrawer({ open, onClose }: Props) {
   const { items, subtotal, itemCount } = useCart()
+  const [waOpen, setWaOpen] = useState(false)
 
   // Close on ESC
   useEffect(() => {
@@ -98,14 +100,13 @@ export default function CartDrawer({ open, onClose }: Props) {
             </Link>
 
             {(client as any).features?.whatsappOrder && (client as any).whatsapp && (
-              <Link
-                href="/checkout?method=whatsapp"
-                onClick={onClose}
+              <button
+                onClick={() => setWaOpen(true)}
                 className="flex items-center justify-center gap-2 w-full py-2.5 rounded font-semibold text-sm text-white bg-green-500 hover:bg-green-600 transition-colors"
               >
                 <MessageCircle size={15} />
                 Order via WhatsApp
-              </Link>
+              </button>
             )}
 
             <button
@@ -117,6 +118,8 @@ export default function CartDrawer({ open, onClose }: Props) {
           </div>
         )}
       </div>
+
+      <WhatsAppQuickOrder open={waOpen} onClose={() => { setWaOpen(false); onClose() }} />
     </>
   )
 }

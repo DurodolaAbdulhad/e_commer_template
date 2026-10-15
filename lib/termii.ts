@@ -33,3 +33,24 @@ export async function sendShippingUpdateSMS(phone: string, orderNumber: string, 
   const msg = `${storeName}: Your order ${orderNumber} is now ${status}.${trackPart}`
   await sendSMS(phone, msg, storeName.slice(0, 11))
 }
+
+// Termii WhatsApp channel — requires sender to be approved in the Termii dashboard.
+// Falls back silently if TERMII_API_KEY is not set.
+export async function sendWhatsAppMessage(to: string, message: string) {
+  if (!API_KEY) return
+  const phone = to.replace(/\D/g, '').replace(/^0/, '234')
+  const res = await fetch(`${BASE_URL}/api/sms/send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to: phone, from: 'N-Alert', sms: message, type: 'plain', channel: 'whatsapp', api_key: API_KEY }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    console.error('[Termii/WA] send failed:', body.slice(0, 200))
+  }
+}
+
+export async function notifyStoreOwnerWhatsApp(ownerPhone: string, orderNumber: string, customerName: string, total: string, storeName: string) {
+  const msg = `🛍️ New ${storeName} order!\n\nRef: ${orderNumber}\nCustomer: ${customerName}\nTotal: ${total}\n\nCheck your dashboard to confirm.`
+  await sendWhatsAppMessage(ownerPhone, msg)
+}

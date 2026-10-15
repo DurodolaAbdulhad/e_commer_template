@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { Search, ChevronRight, ShoppingBag, AlertCircle, Download } from 'lucide-react'
+import { Search, ChevronRight, ShoppingBag, AlertCircle, Download, MessageCircle } from 'lucide-react'
 import { formatPrice } from '@/lib/utils'
 import { client } from '@/config/client'
 import toast from 'react-hot-toast'
@@ -190,6 +190,9 @@ export default function AdminOrdersPage() {
                     {order.payment_method === 'bank_transfer' && (
                       <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 uppercase tracking-wide">Bank</span>
                     )}
+                    {order.payment_method === 'whatsapp' && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 uppercase tracking-wide">WA</span>
+                    )}
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5">{date}</p>
                 </div>
@@ -205,9 +208,20 @@ export default function AdminOrdersPage() {
                     <option key={s} value={s}>{s}</option>
                   ))}
                 </select>
-                <Link href={`/admin/orders/${order.id || ref}`} className="opacity-0 group-hover:opacity-100 transition-opacity">
-                  <ChevronRight size={14} className="text-gray-400" />
-                </Link>
+                <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {order.payment_method === 'whatsapp' && (order.customer_phone || order.address?.phone) && (
+                    <a
+                      href={`https://wa.me/${(order.customer_phone || order.address?.phone).replace(/\D/g,'').replace(/^0/,'234')}`}
+                      target="_blank" rel="noopener noreferrer"
+                      title="Reply on WhatsApp"
+                      onClick={e => e.stopPropagation()}>
+                      <MessageCircle size={14} className="text-green-500" />
+                    </a>
+                  )}
+                  <Link href={`/admin/orders/${order.id || ref}`}>
+                    <ChevronRight size={14} className="text-gray-400" />
+                  </Link>
+                </div>
               </div>
             )
           })
