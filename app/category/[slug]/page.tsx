@@ -21,10 +21,15 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
     const { data: cat } = await supabase.from('categories').select('*').eq('slug', slug).single()
     category = cat
     if (category) {
+      // Collect this category's ID plus any direct subcategory IDs
+      const { data: children } = await supabase
+        .from('categories').select('id').eq('parent_id', category.id)
+      const ids = [category.id, ...(children ?? []).map((c: any) => c.id)]
+
       const { data: prods } = await supabase
         .from('products')
         .select('*')
-        .eq('category_id', category.id)
+        .in('category_id', ids)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
       products = prods ?? []

@@ -47,7 +47,7 @@ export default function OrderConfirmationPage() {
     try {
       const form = new FormData();
       form.append('file', file);
-      const res = await fetch('/api/admin/upload', { method: 'POST', body: form });
+      const res = await fetch('/api/orders/upload-receipt', { method: 'POST', body: form });
       if (!res.ok) throw new Error('Upload failed');
       const { url } = await res.json();
       setReceiptUrl(url);

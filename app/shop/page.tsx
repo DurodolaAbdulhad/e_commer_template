@@ -47,7 +47,13 @@ async function getProducts(params: SearchParams) {
     if (params.category) {
       const { data: cat } = await supabase
         .from('categories').select('id').eq('slug', params.category).single()
-      if (cat) query = query.eq('category_id', cat.id)
+      if (cat) {
+        // Include products in this category AND any direct subcategories
+        const { data: children } = await supabase
+          .from('categories').select('id').eq('parent_id', cat.id)
+        const ids = [cat.id, ...(children ?? []).map((c: any) => c.id)]
+        query = query.in('category_id', ids)
+      }
     }
     if (params.featured === 'true') query = query.eq('is_featured', true)
     if (params.sale === 'true')     query = query.not('compare_price', 'is', null)
