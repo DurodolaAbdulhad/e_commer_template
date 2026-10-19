@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Package, ShoppingBag, Tag, Image, Users,
   Settings, LogOut, ExternalLink, ChevronRight, ChevronDown, Mail, FileText, Ticket, Bell,
-  Zap, Gift, Layers, RotateCcw, FileEdit, ShoppingCart, UserCog, UserCheck, LayoutList, SlidersHorizontal, Truck, BarChart2, Star, DollarSign,
+  Zap, Gift, Layers, RotateCcw, FileEdit, ShoppingCart, UserCog, UserCheck, LayoutList, SlidersHorizontal, Truck, BarChart2, Star, DollarSign, MessageCircle,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useAdmin } from '@/hooks/useAdmin'
@@ -52,6 +52,8 @@ const NAV: NavItem[] = [
   { href: '/admin/abandoned-carts',  label: 'Abandoned Carts',      icon: ShoppingCart, minRole: 'manager' },
   { href: '/admin/back-in-stock',    label: 'Back-in-Stock',        icon: Bell,         minRole: 'manager' },
   { href: '/admin/push',             label: 'Push Notifications',   icon: Bell,         minRole: 'manager' },
+  { href: '/admin/chats',            label: 'DM Chats',             icon: MessageCircle, minRole: 'manager' },
+  { href: '/admin/fulfilment',       label: 'Fulfilment',           icon: Truck,        minRole: 'manager' },
   { href: '/admin/agents',           label: 'Agents & Sales',       icon: Users,        minRole: 'manager' },
   { href: '/admin/staff',            label: 'Staff & Roles',        icon: UserCog,      minRole: 'admin'   },
   { href: '/admin/blog',             label: 'Blog Posts',           icon: FileText,     minRole: 'manager' },

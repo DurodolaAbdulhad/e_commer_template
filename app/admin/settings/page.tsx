@@ -120,6 +120,21 @@ export default function SettingsPage() {
   const [savingStoreText,       setSavingStoreText]       = useState(false)
   const [savedStoreText,        setSavedStoreText]        = useState(false)
 
+  // DM Sales Agent
+  const [waEnabled,       setWaEnabled]       = useState(false)
+  const [igEnabled,       setIgEnabled]       = useState(false)
+  const [waPhoneId,       setWaPhoneId]       = useState('')
+  const [waToken,         setWaToken]         = useState('')
+  const [waVerifyToken,   setWaVerifyToken]   = useState('')
+  const [waAppSecret,     setWaAppSecret]     = useState('')
+  const [igPageId,        setIgPageId]        = useState('')
+  const [igToken,         setIgToken]         = useState('')
+  const [igVerifyToken,   setIgVerifyToken]   = useState('')
+  const [igAppSecret,     setIgAppSecret]     = useState('')
+  const [dmClaudeKey,     setDmClaudeKey]     = useState('')
+  const [savingDm,        setSavingDm]        = useState(false)
+  const [savedDm,         setSavedDm]         = useState(false)
+
   // Newsletter popup
   const [popupEnabled,  setPopupEnabled]  = useState(true)
   const [popupTitle,    setPopupTitle]    = useState('Get 10% off your first order')
@@ -185,6 +200,22 @@ export default function SettingsPage() {
         if (o.city)    setShipOriginCity(o.city)
         if (o.state)   setShipOriginState(o.state)
       }
+    })
+    // DM agent flags (non-secrets)
+    getStoreSetting('whatsapp_enabled').then(v => { if (v !== null && v !== undefined) setWaEnabled(v !== '0' && v !== false) })
+    getStoreSetting('instagram_enabled').then(v => { if (v !== null && v !== undefined) setIgEnabled(v !== '0' && v !== false) })
+    // DM agent secrets
+    fetch('/api/admin/integration-secrets').then(r => r.ok ? r.json() : null).then(d => {
+      if (!d) return
+      if (d.whatsapp_phone_number_id) setWaPhoneId(d.whatsapp_phone_number_id)
+      if (d.whatsapp_access_token)    setWaToken(d.whatsapp_access_token)
+      if (d.whatsapp_verify_token)    setWaVerifyToken(d.whatsapp_verify_token)
+      if (d.whatsapp_app_secret)      setWaAppSecret(d.whatsapp_app_secret)
+      if (d.instagram_page_id)        setIgPageId(d.instagram_page_id)
+      if (d.instagram_access_token)   setIgToken(d.instagram_access_token)
+      if (d.instagram_verify_token)   setIgVerifyToken(d.instagram_verify_token)
+      if (d.instagram_app_secret)     setIgAppSecret(d.instagram_app_secret)
+      if (d.claude_api_key)           setDmClaudeKey(d.claude_api_key)
     })
   }, [])
 
@@ -1411,6 +1442,125 @@ export default function SettingsPage() {
             style={{ backgroundColor: savedShipping ? '#16a34a' : ACCENT }}>
             {savedShipping ? <><Check size={13} /> Saved</>
               : savingShipping ? <><Save size={13} className="animate-pulse" /> Saving…</>
+              : <><Save size={13} /> Save</>}
+          </button>
+        </div>
+      </div>
+
+      {/* ── DM Sales Agent ─────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Bot size={16} style={{ color: ACCENT }} />
+          <h2 className="text-sm font-bold text-gray-800">DM Sales Agent</h2>
+        </div>
+        <p className="text-xs text-gray-500 mb-4">
+          Connect WhatsApp Business & Instagram to let the AI agent handle DMs, answer product questions, and create orders automatically. Webhook URL: <code className="bg-gray-100 px-1 rounded text-[10px]">{typeof window !== 'undefined' ? window.location.origin : ''}/api/meta/webhook</code>
+        </p>
+
+        {/* WhatsApp */}
+        <div className="border border-gray-100 rounded-xl p-4 mb-3">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-xs font-bold text-gray-700">WhatsApp Business</p>
+              <p className="text-[10px] text-gray-400">Meta Cloud API — requires verified WhatsApp Business account</p>
+            </div>
+            <button onClick={() => setWaEnabled(v => !v)}
+              className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0"
+              style={{ backgroundColor: waEnabled ? ACCENT : '#d1d5db' }}>
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${waEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+          {waEnabled && (
+            <div className="space-y-2 pt-2 border-t border-gray-50">
+              {[
+                { label: 'Phone Number ID',  value: waPhoneId,     set: setWaPhoneId,     ph: '123456789012345' },
+                { label: 'Access Token',     value: waToken,       set: setWaToken,       ph: 'EAAGm…' },
+                { label: 'Verify Token',     value: waVerifyToken, set: setWaVerifyToken, ph: 'my-verify-token-123' },
+                { label: 'App Secret',       value: waAppSecret,   set: setWaAppSecret,   ph: 'abc123def456' },
+              ].map(f => (
+                <div key={f.label}>
+                  <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wider block mb-1">{f.label}</label>
+                  <input type="password" value={f.value} onChange={e => f.set(e.target.value)} placeholder={f.ph}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-gray-400 font-mono" />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Instagram */}
+        <div className="border border-gray-100 rounded-xl p-4 mb-3">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-xs font-bold text-gray-700">Instagram DMs</p>
+              <p className="text-[10px] text-gray-400">Instagram Messaging API — requires Facebook Page linked to Instagram Business</p>
+            </div>
+            <button onClick={() => setIgEnabled(v => !v)}
+              className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0"
+              style={{ backgroundColor: igEnabled ? ACCENT : '#d1d5db' }}>
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${igEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+          {igEnabled && (
+            <div className="space-y-2 pt-2 border-t border-gray-50">
+              {[
+                { label: 'Facebook Page ID', value: igPageId,        set: setIgPageId,        ph: '123456789' },
+                { label: 'Page Access Token',value: igToken,         set: setIgToken,         ph: 'EAAGm…' },
+                { label: 'Verify Token',     value: igVerifyToken,   set: setIgVerifyToken,   ph: 'my-ig-verify-token' },
+                { label: 'App Secret',       value: igAppSecret,     set: setIgAppSecret,     ph: 'abc123def456' },
+              ].map(f => (
+                <div key={f.label}>
+                  <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wider block mb-1">{f.label}</label>
+                  <input type="password" value={f.value} onChange={e => f.set(e.target.value)} placeholder={f.ph}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-gray-400 font-mono" />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Claude API key */}
+        <div className="border border-gray-100 rounded-xl p-4 mb-4">
+          <p className="text-xs font-bold text-gray-700 mb-1">Claude AI Key</p>
+          <p className="text-[10px] text-gray-400 mb-2">Anthropic API key powering the sales conversation engine</p>
+          <input type="password" value={dmClaudeKey} onChange={e => setDmClaudeKey(e.target.value)}
+            placeholder="sk-ant-api03-…"
+            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-gray-400 font-mono" />
+        </div>
+
+        <div className="flex justify-end">
+          <button
+            onClick={async () => {
+              setSavingDm(true)
+              try {
+                await Promise.all([
+                  saveStoreSetting('whatsapp_enabled',  waEnabled),
+                  saveStoreSetting('instagram_enabled', igEnabled),
+                ])
+                await fetch('/api/admin/integration-secrets', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    whatsapp_phone_number_id: waPhoneId,
+                    whatsapp_access_token:    waToken,
+                    whatsapp_verify_token:    waVerifyToken,
+                    whatsapp_app_secret:      waAppSecret,
+                    instagram_page_id:        igPageId,
+                    instagram_access_token:   igToken,
+                    instagram_verify_token:   igVerifyToken,
+                    instagram_app_secret:     igAppSecret,
+                    claude_api_key:           dmClaudeKey,
+                  }),
+                })
+                setSavedDm(true); setTimeout(() => setSavedDm(false), 2500)
+                toast.success('DM Agent settings saved')
+              } catch { toast.error('Save failed') } finally { setSavingDm(false) }
+            }}
+            disabled={savingDm}
+            className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded-xl text-white hover:opacity-90 disabled:opacity-60"
+            style={{ backgroundColor: savedDm ? '#16a34a' : ACCENT }}>
+            {savedDm ? <><Check size={13} /> Saved</>
+              : savingDm ? <><Save size={13} className="animate-pulse" /> Saving…</>
               : <><Save size={13} /> Save</>}
           </button>
         </div>

@@ -17,6 +17,7 @@
     "cpanel-deploy": "bash scripts/cpanel-deploy.sh"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
     "@paystack/inline-js": "^2.23.1",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
