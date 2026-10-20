@@ -489,13 +489,24 @@ export default function Header() {
             Categories
           </p>
           {navCategories.map(cat => (
-            <Link key={cat.slug}
-              href={`/shop?category=${cat.slug}`}
-              onClick={() => setMenuOpen(false)}
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 20px', color: 'rgba(255,255,255,0.65)', fontSize: '13px', textDecoration: 'none', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-              <span style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: ACCENT, flexShrink: 0 }} />
-              {cat.name}
-            </Link>
+            <div key={cat.slug}>
+              <Link
+                href={`/shop?category=${cat.slug}`}
+                onClick={() => setMenuOpen(false)}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 20px', color: 'rgba(255,255,255,0.65)', fontSize: '13px', textDecoration: 'none', borderBottom: '1px solid rgba(255,255,255,0.04)', fontWeight: cat.children.length ? 600 : 400 }}>
+                <span style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: ACCENT, flexShrink: 0 }} />
+                {cat.name}
+              </Link>
+              {cat.children.map(sub => (
+                <Link key={sub.slug}
+                  href={`/shop?category=${sub.slug}`}
+                  onClick={() => setMenuOpen(false)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 20px 7px 36px', color: 'rgba(255,255,255,0.45)', fontSize: '12px', textDecoration: 'none', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                  <span style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.3)', flexShrink: 0 }} />
+                  {sub.name}
+                </Link>
+              ))}
+            </div>
           ))}
         </div>
 

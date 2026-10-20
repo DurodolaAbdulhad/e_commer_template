@@ -108,7 +108,8 @@ export default function SettingsPage() {
   const [savedFx,       setSavedFx]       = useState(false)
   const [refreshingFx,  setRefreshingFx]  = useState(false)
 
-  // Combo builder tiers
+  // Combo builder
+  const [comboEnabled,  setComboEnabled]  = useState(true)
   const [comboTiers,    setComboTiers]    = useState<{ min_spend: number; discount_pct: number }[]>([])
   const [savingTiers,   setSavingTiers]   = useState(false)
   const [savedTiers,    setSavedTiers]    = useState(false)
@@ -170,6 +171,7 @@ export default function SettingsPage() {
     getStoreSetting('popup_description').then(v => { if (v) setPopupDesc(v) })
     getStoreSetting('popup_discount_code').then(v => { if (v) setPopupCode(v) })
     getStoreSetting('popup_delay').then(v => { if (v) setPopupDelay(Number(v)) })
+    getStoreSetting('combo_enabled').then(v => { setComboEnabled(v === null || v === undefined || v !== '0' && v !== false) })
     getComboTiers().then(t => setComboTiers(t))
     getPricingTiers().then(t => setPricingTierDefs(t))
     getStoreSetting('bnpl_enabled').then(v    => { if (v !== null && v !== undefined) setBnplEnabled(v !== '0' && v !== false) })
@@ -903,6 +905,24 @@ export default function SettingsPage() {
           </p>
         </div>
         <div className="px-5 py-5 space-y-3">
+          {/* Enable/disable toggle */}
+          <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+            <div>
+              <p className="text-xs font-semibold text-gray-700">Show &ldquo;Build a Combo&rdquo; button</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">Display the floating combo builder button on the storefront</p>
+            </div>
+            <button
+              onClick={async () => {
+                const next = !comboEnabled
+                setComboEnabled(next)
+                await saveStoreSetting('combo_enabled', next ? 'true' : '0')
+                toast.success(next ? 'Combo builder enabled' : 'Combo builder hidden')
+              }}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${comboEnabled ? 'bg-green-500' : 'bg-gray-200'}`}
+            >
+              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${comboEnabled ? 'translate-x-4' : 'translate-x-1'}`} />
+            </button>
+          </div>
           {/* Tier rows */}
           {comboTiers.map((tier, i) => (
             <div key={i} className="flex items-center gap-3">

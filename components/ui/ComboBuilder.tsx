@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import Image from 'next/image'
 import { useCart } from '@/hooks/useCart'
-import { getProducts, getComboTiers } from '@/lib/admin-db'
+import { getProducts, getComboTiers, getStoreSetting } from '@/lib/admin-db'
 import { formatPrice } from '@/lib/utils'
 import { client } from '@/config/client'
 import toast from 'react-hot-toast'
@@ -37,12 +37,20 @@ function nextTier(total: number, tiers: Tier[]): Tier | null {
 }
 
 export default function ComboBuilder() {
-  const [open,     setOpen]     = useState(false)
-  const [products, setProducts] = useState<Item[]>([])
-  const [search,   setSearch]   = useState('')
-  const [selected, setSelected] = useState<Map<string, number>>(new Map())
+  const [open,        setOpen]        = useState(false)
+  const [products,    setProducts]    = useState<Item[]>([])
+  const [search,      setSearch]      = useState('')
+  const [selected,    setSelected]    = useState<Map<string, number>>(new Map())
+  const [enabled,     setEnabled]     = useState<boolean | null>(null)
   const tiers   = useComboTiers()
   const { dispatch } = useCart() as any
+
+  useEffect(() => {
+    getStoreSetting('combo_enabled').then(v => {
+      // null means setting not yet saved — default to true (legacy behaviour)
+      setEnabled(v === null || v === undefined || v === true || v === 'true' || v === 1 || v === '1')
+    }).catch(() => setEnabled(true))
+  }, [])
 
   // Load products once drawer opens
   useEffect(() => {
@@ -115,16 +123,18 @@ export default function ComboBuilder() {
 
   return (
     <>
-      {/* Floating button */}
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed bottom-24 right-4 z-40 flex items-center gap-2 px-4 py-3 text-white text-sm font-bold rounded-2xl shadow-lg transition-all hover:scale-105 active:scale-95"
-        style={{ backgroundColor: ACCENT }}
-        aria-label="Build your own combo"
-      >
-        <Layers size={16} />
-        <span className="hidden sm:inline">Build a Combo</span>
-      </button>
+      {/* Floating button — only shown when combo feature is enabled in admin settings */}
+      {enabled && (
+        <button
+          onClick={() => setOpen(true)}
+          className="fixed bottom-24 right-4 z-40 flex items-center gap-2 px-4 py-3 text-white text-sm font-bold rounded-2xl shadow-lg transition-all hover:scale-105 active:scale-95"
+          style={{ backgroundColor: ACCENT }}
+          aria-label="Build your own combo"
+        >
+          <Layers size={16} />
+          <span className="hidden sm:inline">Build a Combo</span>
+        </button>
+      )}
 
       {/* Backdrop */}
       {open && (

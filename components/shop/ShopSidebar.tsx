@@ -43,6 +43,61 @@ interface Props {
   forceMobile?:    boolean
 }
 
+function ParentCategoryItem({
+  parent, subs, activeCategory, buildHref, getCategoryIcon, categoryBadges, defaultExpanded, ACCENT,
+}: {
+  parent: any; subs: any[]; activeCategory?: string
+  buildHref: (o: Record<string, string | undefined>) => string
+  getCategoryIcon: (n: string) => React.ReactNode
+  categoryBadges: Record<string, { label: string; color: string }>
+  defaultExpanded: boolean; ACCENT: string
+}) {
+  const [expanded, setExpanded] = useState(defaultExpanded)
+  const isParentActive = activeCategory === parent.slug
+  const badge = Object.entries(categoryBadges).find(([k]) => parent.name.toLowerCase().includes(k.toLowerCase()))
+
+  return (
+    <li>
+      <div className="flex items-center">
+        <Link href={buildHref({ category: parent.slug })}
+          className="flex-1 flex items-center gap-2 px-2 py-1.5 rounded-l text-sm transition-colors group"
+          style={{ color: isParentActive ? ACCENT : '#555', fontWeight: isParentActive || subs.length ? 600 : 400 }}>
+          <span className="text-gray-400 shrink-0">{getCategoryIcon(parent.name)}</span>
+          <span className="flex-1 group-hover:text-gray-800">{parent.name}</span>
+          {badge && (
+            <span className="text-[9px] font-bold text-white px-1.5 py-0.5 rounded-sm"
+              style={{ backgroundColor: badge[1].color }}>{badge[1].label}</span>
+          )}
+        </Link>
+        {subs.length > 0 && (
+          <button onClick={() => setExpanded(e => !e)}
+            className="px-1.5 py-1.5 text-gray-400 hover:text-gray-600 transition-colors">
+            <ChevronDown size={12} style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+          </button>
+        )}
+      </div>
+      {expanded && subs.length > 0 && (
+        <ul className="pl-4 mt-0.5 space-y-0.5 border-l-2 ml-4" style={{ borderColor: '#f0f0f0' }}>
+          {subs.map((sub: any) => {
+            const isSubActive = activeCategory === sub.slug
+            return (
+              <li key={sub.id}>
+                <Link href={buildHref({ category: sub.slug })}
+                  className="flex items-center gap-2 px-2 py-1 rounded text-xs transition-colors group"
+                  style={{ color: isSubActive ? ACCENT : '#666', fontWeight: isSubActive ? 600 : 400 }}>
+                  <span className="w-1 h-1 rounded-full bg-gray-300 shrink-0" />
+                  <span className="flex-1 group-hover:text-gray-800">{sub.name}</span>
+                  {!isSubActive && <ChevronRight size={9} className="text-gray-300" />}
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </li>
+  )
+}
+
 export default function ShopSidebar({
   categories, activeCategory, activeMin, activeMax,
   activeFeatured, activeSale, activeRating, activeBrand, activeColor, activeSize,
@@ -116,27 +171,58 @@ export default function ShopSidebar({
                   All Products
                 </Link>
               </li>
-              {categories.map((cat: any) => {
-                const isActive = activeCategory === cat.slug
-                const badge = Object.entries(categoryBadges).find(([k]) =>
-                  cat.name.toLowerCase().includes(k.toLowerCase())
-                )
-                return (
-                  <li key={cat.id}>
-                    <Link href={buildHref({ category: cat.slug })}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors group"
-                      style={{ color: isActive ? ACCENT : '#555', fontWeight: isActive ? 600 : 400 }}>
-                      <span className="text-gray-400 shrink-0">{getCategoryIcon(cat.name)}</span>
-                      <span className="flex-1 group-hover:text-gray-800">{cat.name}</span>
-                      {badge && (
-                        <span className="text-[9px] font-bold text-white px-1.5 py-0.5 rounded-sm"
-                          style={{ backgroundColor: badge[1].color }}>{badge[1].label}</span>
-                      )}
-                      {!isActive && <ChevronRight size={10} className="text-gray-300" />}
-                    </Link>
-                  </li>
-                )
-              })}
+              {(() => {
+                const parents = categories.filter((c: any) => !c.parent_id)
+                const childrenOf = (id: string) => categories.filter((c: any) => c.parent_id === id)
+
+                // If categories have no parent_id at all (flat list), render as before
+                const isHierarchical = categories.some((c: any) => c.parent_id)
+
+                if (!isHierarchical) {
+                  return categories.map((cat: any) => {
+                    const isActive = activeCategory === cat.slug
+                    const badge = Object.entries(categoryBadges).find(([k]) =>
+                      cat.name.toLowerCase().includes(k.toLowerCase())
+                    )
+                    return (
+                      <li key={cat.id}>
+                        <Link href={buildHref({ category: cat.slug })}
+                          className="flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors group"
+                          style={{ color: isActive ? ACCENT : '#555', fontWeight: isActive ? 600 : 400 }}>
+                          <span className="text-gray-400 shrink-0">{getCategoryIcon(cat.name)}</span>
+                          <span className="flex-1 group-hover:text-gray-800">{cat.name}</span>
+                          {badge && (
+                            <span className="text-[9px] font-bold text-white px-1.5 py-0.5 rounded-sm"
+                              style={{ backgroundColor: badge[1].color }}>{badge[1].label}</span>
+                          )}
+                          {!isActive && <ChevronRight size={10} className="text-gray-300" />}
+                        </Link>
+                      </li>
+                    )
+                  })
+                }
+
+                return parents.map((parent: any) => {
+                  const subs = childrenOf(parent.id)
+                  const isParentActive = activeCategory === parent.slug
+                  const isChildActive  = subs.some((c: any) => c.slug === activeCategory)
+                  const defaultExpanded = isParentActive || isChildActive
+
+                  return (
+                    <ParentCategoryItem
+                      key={parent.id}
+                      parent={parent}
+                      subs={subs}
+                      activeCategory={activeCategory}
+                      buildHref={buildHref}
+                      getCategoryIcon={getCategoryIcon}
+                      categoryBadges={categoryBadges}
+                      defaultExpanded={defaultExpanded}
+                      ACCENT={ACCENT}
+                    />
+                  )
+                })
+              })()}
             </ul>
           )}
         </div>
