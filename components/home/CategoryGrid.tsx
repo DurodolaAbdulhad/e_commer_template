@@ -95,7 +95,7 @@ export default async function CategoryGrid() {
           return (
             <Link
               key={cat.slug}
-              href={`/category/${cat.slug}`}
+              href={`/shop?category=${cat.slug}`}
               className="group flex flex-col items-center rounded-xl border border-gray-100 hover:border-gray-300 hover:shadow-md transition-all duration-200 overflow-hidden bg-white"
             >
               {/* Icon/image area */}
