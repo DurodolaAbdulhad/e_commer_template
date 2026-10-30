@@ -46,6 +46,7 @@ export default function Header() {
   const [logoAccentWord, setLogoAccentWord] = useState<string>('')
   const [logoAccentColor,setLogoAccentColor]= useState<string>(ACCENT)
   const [dbCategories,   setDbCategories]   = useState<any[]>([])
+  const [navCatIds,      setNavCatIds]      = useState<Set<string> | null>(null)
   const [announcementText, setAnnouncementText] = useState<string>('')
   const searchWrapRef = useRef<HTMLDivElement>(null)
 
@@ -61,6 +62,10 @@ export default function Header() {
     getStoreSetting('logo_accent_word').then((v: string | null) => { if (v) setLogoAccentWord(v) }).catch(() => {})
     getStoreSetting('logo_accent_color').then((v: string | null)=> { if (v) setLogoAccentColor(v) }).catch(() => {})
     getStoreSetting('announcement_text').then((v: string | null) => { if (v) setAnnouncementText(v) }).catch(() => {})
+    getStoreSetting('nav_category_ids').then((v: string | null) => {
+      if (v) { try { setNavCatIds(new Set(JSON.parse(v))) } catch {} }
+      else { setNavCatIds(null) }
+    }).catch(() => {})
     fetch('/api/categories')
       .then(r => r.json())
       .then(({ categories }) => { if (categories?.length) setDbCategories(categories) })
@@ -83,7 +88,7 @@ export default function Header() {
   const navCategories: Array<{ name: string; slug: string; isParent: boolean; children: Array<{ name: string; slug: string }> }> =
     dbCategories.length
       ? dbCategories
-          .filter((c: any) => !c.parent_id && c.is_active !== false)
+          .filter((c: any) => !c.parent_id && c.is_active !== false && (navCatIds === null || navCatIds.size === 0 || navCatIds.has(c.id)))
           .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name))
           .map((parent: any) => ({
             name: parent.name,

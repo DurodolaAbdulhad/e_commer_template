@@ -145,6 +145,12 @@ export default function SettingsPage() {
   const [savingPopup,   setSavingPopup]   = useState(false)
   const [savedPopup,    setSavedPopup]    = useState(false)
 
+  // Shop By Category nav visibility
+  const [navCatAll,     setNavCatAll]     = useState<{ id: string; name: string }[]>([])
+  const [navCatIds,     setNavCatIds]     = useState<Set<string>>(new Set())
+  const [savingNav,     setSavingNav]     = useState(false)
+  const [savedNav,      setSavedNav]      = useState(false)
+
   useEffect(() => {
     getStoreSetting('site_title').then(v   => { if (v) setSiteTitle(v) })
     getStoreSetting('site_favicon').then(v => { if (v) setSiteFavicon(v) })
@@ -206,6 +212,19 @@ export default function SettingsPage() {
     // DM agent flags (non-secrets)
     getStoreSetting('whatsapp_enabled').then(v => { if (v !== null && v !== undefined) setWaEnabled(v !== '0' && v !== false) })
     getStoreSetting('instagram_enabled').then(v => { if (v !== null && v !== undefined) setIgEnabled(v !== '0' && v !== false) })
+    // Shop By Category nav ids
+    fetch('/api/categories')
+      .then(r => r.json())
+      .then(({ categories }) => {
+        const parents = (categories ?? []).filter((c: any) => !c.parent_id)
+        setNavCatAll(parents)
+      }).catch(() => {})
+    getStoreSetting('nav_category_ids').then(v => {
+      if (v) {
+        try { setNavCatIds(new Set(JSON.parse(v as string))) } catch {}
+      }
+    })
+
     // DM agent secrets
     fetch('/api/admin/integration-secrets').then(r => r.ok ? r.json() : null).then(d => {
       if (!d) return
@@ -891,6 +910,63 @@ export default function SettingsPage() {
                 : <><Save size={13} /> Save</>}
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* ── Shop By Category ─────────────────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-gray-100 bg-gray-50">
+          <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wide flex items-center gap-2">
+            <Layers size={13} /> Shop By Category — Nav Visibility
+          </h3>
+          <p className="text-[10px] text-gray-400 mt-0.5">
+            Tick which parent categories appear in the &ldquo;Shop By Category&rdquo; dropdown. Unticked categories stay in the store but won&rsquo;t show in the nav. Leave all unticked to show every active category (default).
+          </p>
+        </div>
+        <div className="px-5 py-5">
+          {navCatAll.length === 0 ? (
+            <p className="text-xs text-gray-400">No parent categories found — add categories first.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
+              {navCatAll.map(cat => {
+                const checked = navCatIds.has(cat.id)
+                return (
+                  <label key={cat.id} className="flex items-center gap-2.5 cursor-pointer select-none group">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        const next = new Set(navCatIds)
+                        if (checked) next.delete(cat.id); else next.add(cat.id)
+                        setNavCatIds(next)
+                        setSavedNav(false)
+                      }}
+                      className="w-3.5 h-3.5 rounded border-gray-300 accent-red-500 cursor-pointer"
+                    />
+                    <span className="text-xs text-gray-700 group-hover:text-gray-900 transition-colors">{cat.name}</span>
+                  </label>
+                )
+              })}
+            </div>
+          )}
+          <button
+            onClick={async () => {
+              setSavingNav(true)
+              try {
+                await saveStoreSetting('nav_category_ids', JSON.stringify([...navCatIds]))
+                setSavedNav(true)
+                toast.success('Nav categories saved')
+                setTimeout(() => setSavedNav(false), 2000)
+              } catch { toast.error('Save failed') }
+              finally { setSavingNav(false) }
+            }}
+            disabled={savingNav || navCatAll.length === 0}
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold text-white transition-colors disabled:opacity-50"
+            style={{ backgroundColor: savedNav ? '#16a34a' : ACCENT }}
+          >
+            {savingNav ? <Loader2 size={12} className="animate-spin" /> : savedNav ? <Check size={12} /> : <Save size={12} />}
+            {savedNav ? 'Saved' : 'Save Nav Categories'}
+          </button>
         </div>
       </div>
 
