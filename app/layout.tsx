@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Script from "next/script";
 import { Toaster } from "react-hot-toast";
 import { CartProvider } from "@/hooks/useCart";
@@ -187,7 +188,7 @@ export default async function RootLayout({
             <ComboBuilder />
             <TrackingScripts fbPixelId={fbPixelId || undefined} gaId={gaId || undefined} tiktokId={tiktokId || undefined} clarityId={clarityId || undefined} />
             <CookieConsent />
-            <AgentRefCapture />
+            <Suspense fallback={null}><AgentRefCapture /></Suspense>
             <Toaster
               position="top-right"
               toastOptions={{
