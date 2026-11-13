@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { timingSafeEqual } from 'crypto'
 import { verifyPriceSig } from '@/app/api/checkout/initiate/route'
 import { isServiceClientReady, getServiceClient } from '@/lib/supabase-service'
+import { notifyStoreOwner } from '@/lib/notify-store'
 
 export async function POST(req: NextRequest) {
   // Flutterwave verifies webhooks via a secret hash header
@@ -56,8 +57,25 @@ export async function POST(req: NextRequest) {
           .from('orders')
           .update({ status: 'paid', payment_status: 'paid' })
           .eq('payment_reference', reference)
-        if (error) console.error('[Flutterwave Webhook] DB update error:', error.message)
-        else console.log(`[Flutterwave Webhook] Order marked paid: ref=${reference}`)
+        if (error) {
+          console.error('[Flutterwave Webhook] DB update error:', error.message)
+        } else {
+          console.log(`[Flutterwave Webhook] Order marked paid: ref=${reference}`)
+          const { data: order } = await supabase
+            .from('orders')
+            .select('order_number, customer_name, customer_email, customer_phone, total, items')
+            .eq('payment_reference', reference)
+            .single()
+          notifyStoreOwner({
+            orderNumber:   order?.order_number ?? reference,
+            customerName:  order?.customer_name ?? event.data?.customer?.name ?? 'Customer',
+            customerPhone: order?.customer_phone ?? event.data?.customer?.phone_number ?? '',
+            customerEmail: order?.customer_email ?? event.data?.customer?.email ?? '',
+            total:         order?.total ?? paidAmount,
+            itemCount:     Array.isArray(order?.items) ? order.items.length : undefined,
+            paymentMethod: 'Flutterwave',
+          })
+        }
       } catch (err: any) {
         console.error('[Flutterwave Webhook] Could not update order:', err?.message)
       }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createHmac, timingSafeEqual } from 'crypto'
 import { verifyPriceSig } from '@/app/api/checkout/initiate/route'
 import { isServiceClientReady, getServiceClient } from '@/lib/supabase-service'
+import { notifyStoreOwner } from '@/lib/notify-store'
 
 export async function POST(req: NextRequest) {
   const signature = req.headers.get('x-paystack-signature')
@@ -67,11 +68,27 @@ export async function POST(req: NextRequest) {
             .from('orders')
             .update({ status: 'paid', payment_status: 'paid' })
             .eq('payment_reference', reference)
-          if (error) console.error('[Paystack Webhook] DB update error:', error.message)
-          else console.log(`[Paystack Webhook] Order marked paid: ref=${reference}`)
+          if (error) {
+            console.error('[Paystack Webhook] DB update error:', error.message)
+          } else {
+            console.log(`[Paystack Webhook] Order marked paid: ref=${reference}`)
+            const { data: order } = await supabase
+              .from('orders')
+              .select('order_number, customer_name, customer_email, customer_phone, total, items')
+              .eq('payment_reference', reference)
+              .single()
+            notifyStoreOwner({
+              orderNumber:   order?.order_number ?? reference,
+              customerName:  order?.customer_name ?? event.data?.customer?.first_name ?? 'Customer',
+              customerPhone: order?.customer_phone ?? '',
+              customerEmail: order?.customer_email ?? event.data?.customer?.email ?? '',
+              total:         order?.total ?? paidAmount,
+              itemCount:     Array.isArray(order?.items) ? order.items.length : undefined,
+              paymentMethod: 'Paystack',
+            })
+          }
         } else {
           // Order not created yet — insert minimal record so admin can see it
-          const meta = event.data?.metadata ?? {}
           const { error } = await supabase.from('orders').insert({
             order_number:      reference,
             status:            'processing',
@@ -85,8 +102,18 @@ export async function POST(req: NextRequest) {
             shipping_address:  {},
             items:             [],
           })
-          if (error) console.error('[Paystack Webhook] DB insert error:', error.message)
-          else console.log(`[Paystack Webhook] Order created from webhook: ref=${reference}`)
+          if (error) {
+            console.error('[Paystack Webhook] DB insert error:', error.message)
+          } else {
+            console.log(`[Paystack Webhook] Order created from webhook: ref=${reference}`)
+            notifyStoreOwner({
+              orderNumber:   reference,
+              customerName:  event.data?.customer?.first_name ?? 'Customer',
+              customerEmail: event.data?.customer?.email ?? '',
+              total:         paidAmount,
+              paymentMethod: 'Paystack',
+            })
+          }
         }
       } catch (err: any) {
         console.error('[Paystack Webhook] Could not update order:', err?.message)
